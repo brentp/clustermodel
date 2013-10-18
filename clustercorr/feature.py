@@ -29,8 +29,12 @@ class ClusterFeature(object):
                                              self.end, len(self.values))
 
 def row_handler(tokens):
-    chrom, pos = tokens[0].split(":")
-    return (chrom, int(pos) - 1, int(pos), np.array(map(float, tokens[1:])))
+    try:
+        chrom, pos = tokens[0].split(":" if ":" in tokens[0] else "_")
+    except ValueError:
+        chrom, pos = "chrom", int(tokens[0])
+    return (chrom, int(pos) - 1, int(pos), np.array([float(x or 'nan')
+                                                     for x in tokens[1:]]))
 
 def cluster_to_dataframe(cluster, columns=None):
     df = pd.DataFrame([c.values for c in cluster],
