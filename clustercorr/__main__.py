@@ -1,4 +1,5 @@
 import sys
+import numpy as np
 import pandas as pd
 from aclust import aclust
 from clustercorr import feature_gen, cluster_to_dataframe, clustered_model
@@ -47,13 +48,34 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
                 png = "%s.%s%s" % (png_path[:-4], region, png_path[-4:])
             elif png_path:
                 png = "%s.%s.png" % (png_path.rstrip("."), region)
-            plot_dmr(covs, cluster_df, covariate, chrom, png, res)
+            #plot_dmr(covs, cluster_df, covariate, chrom, res, png)
+            plot_hbar(covs, cluster_df, covariate, chrom, res, png)
         yield res
 
-def plot_dmr(covs, cluster_df, covariate, chrom, png, res):
+# http://nbviewer.ipython.org/urls/raw.github.com/EnricoGiampieri/dataplot/master/statplot.ipynb
+
+def plot_hbar(covs, cluster_df, covariate, chrom, res, png):
     from matplotlib import pyplot as plt
+    from .plotting import hbar_plot
     from mpltools import style
     style.use('ggplot')
+    group = getattr(covs, covariate)
+    grps = list(set(group))
+
+    f = plt.figure(figsize=(12, 4))
+    ax = f.add_subplot(1, 1, 1)
+    cdf = cluster_df.T
+    cdf = 1 / (1 + np.exp(-cdf))
+
+    d1 = dict(cdf.ix[group == grps[0], :].T.iterrows())
+    d2 = dict(cdf.ix[group == grps[1], :].T.iterrows())
+
+    hbar_plot(d1, cdf.columns, d2, ax=ax)
+
+    plt.show()
+
+def plot_dmr(covs, cluster_df, covariate, chrom, res, png):
+    from matplotlib import pyplot as plt
     import numpy as np
     from pandas.tools.plotting import parallel_coordinates
 
