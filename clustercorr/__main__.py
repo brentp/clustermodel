@@ -63,17 +63,24 @@ def plot_dmr(covs, cluster_df, covariate, chrom, png, res):
     cdf['group'] = getattr(covs, covariate)
 
     plt.figure(figsize=(12, 4))
-    ax = parallel_coordinates(cdf, 'group', colors=('#764AE7', '#E81C0E'))
+
+    if cdf.group.dtype == float:
+        ax = parallel_coordinates(cdf, 'group')
+        ax.get_legend().set_visible(False)
+    else:
+        ax = parallel_coordinates(cdf, 'group', colors=('#764AE7', '#E81C0E'))
+        lbls = ax.get_legend().get_texts()
+
+        for lbl in lbls:
+            lbl.set_text(covariate + ' ' + lbl.get_text())
+
     if len(cdf.columns) > 6:
         ax.set_xticklabels([x.get_text() for x in ax.get_xticklabels()],
                           rotation=10)
 
-    lbls = ax.get_legend().get_texts()
-    for lbl in lbls:
-        lbl.set_text(covariate + ' ' + lbl.get_text())
 
     plt.ylabel('methylation')
-    plt.title('p-value: %.3g coefficient: %.4f' % (res['p'], res['coef']))
+    plt.title('p-value: %.3g %s: %.4f' % (res['p'], covariate, res['coef']))
     plt.tight_layout()
     if png:
         plt.savefig(png)
