@@ -5,7 +5,7 @@ from clustercorr import feature_gen, cluster_to_dataframe, clustered_model
 
 def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
         rho_min=0.3, min_clust_size=2, sep="\t",
-        liptak=False, bumping=False, gee_args=(), skat=False):
+        liptak=False, bumping=False, gee_args=(), skat=False, png_path=None):
     # an iterable of feature objects
     feature_iter = feature_gen(fmeth, rho_min=rho_min)
 
@@ -17,7 +17,10 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
 
     covs = pd.read_table(fcovs, index_col=0, sep=sep)
 
+    covariate = model.split("~")[1].split("+")[0].strip()
+
     for cluster in cluster_gen:
+        chrom = cluster[0].group
 
         # we turn the cluster list into a pandas dataframe with columns
         # of samples and rows of probes. these must match our covariates
@@ -30,7 +33,52 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
         res['start'] = cluster[0].start
         res['end'] = cluster[-1].end
         res['n_probes'] = len(cluster)
+
+
+        if res['p'] < 1e-4:
+            if png_path is None:
+                yield res
+                continue
+
+            region = "{chrom}_{start}_{end}".format(**res)
+            if png_path == 'show':
+                png = None
+            elif png_path.endswith(('.png', '.pdf')):
+                png = "%s.%s%s" % (png_path[:-4], region, png_path[-4:])
+            elif png_path:
+                png = "%s.%s.png" % (png_path.rstrip("."), region)
+            plot_dmr(covs, cluster_df, covariate, chrom, png, res)
         yield res
+
+def plot_dmr(covs, cluster_df, covariate, chrom, png, res):
+    from matplotlib import pyplot as plt
+    from mpltools import style
+    style.use('ggplot')
+    import numpy as np
+    from pandas.tools.plotting import parallel_coordinates
+
+    cdf = cluster_df.T
+    cdf.columns = ['%s:%s' % (chrom, "{:,}".format(p)) for p in cdf.columns]
+    cdf = 1 / (1 + np.exp(-cdf))
+    cdf['group'] = getattr(covs, covariate)
+
+    plt.figure(figsize=(12, 4))
+    ax = parallel_coordinates(cdf, 'group', colors=('#764AE7', '#E81C0E'))
+    if len(cdf.columns) > 6:
+        ax.set_xticklabels([x.get_text() for x in ax.get_xticklabels()],
+                          rotation=10)
+
+    lbls = ax.get_legend().get_texts()
+    for lbl in lbls:
+        lbl.set_text(covariate + ' ' + lbl.get_text())
+
+    plt.ylabel('methylation')
+    plt.title('p-value: %.3g coefficient: %.4f' % (res['p'], res['coef']))
+    plt.tight_layout()
+    if png:
+        plt.savefig(png)
+    else:
+        plt.show()
 
 def main_example():
     fcovs = "clustercorr/tests/example-covariates.txt"
@@ -38,7 +86,7 @@ def main_example():
     model = "methylation ~ disease + gender"
 
     for cluster_p in clustermodel(fcovs, fmeth, model):
-        if cluster_p['p'] < 1e-4:
+        if cluster_p['p'] < 1e-5:
             print cluster_p
 
 def main(args=sys.argv[1:]):
@@ -67,6 +115,8 @@ def main(args=sys.argv[1:]):
     cp.add_argument('--max-dist', default=500, type=int,
                     help="maximum distance beyond which a probe can not be"
                     " added to a cluster")
+    p.add_argument('--png-path',
+                   help="path to save a png of regions with low p-values")
 
     p.add_argument('model',
                    help="model in R syntax, e.g. 'methylation ~ disease'")
@@ -98,7 +148,8 @@ def main(args=sys.argv[1:]):
                           liptak=a.liptak,
                           bumping=a.bumping,
                           gee_args=a.gee_args,
-                          skat=a.skat):
+                          skat=a.skat,
+                          png_path=a.png_path):
         c['method'] = method
         print fmt.format(**c)
 
