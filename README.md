@@ -45,7 +45,9 @@ covariates with rows of samples and a file of methylation data that is of shape
 **n_probes X n_samples**.
 
 For example, we may wish to use the stouffer-liptak correction on our data in
-this repository to find regions where methylation is related to disease.:
+this repository to find regions where methylation is related to disease. We use the
+model in R syntax: *methylation ~ disease* where the first covariate on the RHS is
+always our covariate of interest (where we get the p-value).
 
 ```Shell
 python -m clustercorr 'methylation ~ disease' \
@@ -54,7 +56,7 @@ python -m clustercorr 'methylation ~ disease' \
           --liptak --min-cluster-size 3 | head
 ```
 
-The output from that looks like this::
+The output from that looks like this:
 
 	#chrom	start	end	coef	p	n_probes	model	method
 	chr1	2043760	2043853	0.0560277777778	0.576888128824	3	methylation ~ disease	liptak
@@ -68,7 +70,7 @@ The output from that looks like this::
 	chr1	2117424	2118131	-0.029962962963	0.421006269346	3	methylation ~ disease	liptak
 
 where the `p` column is for the combined probes. We can repeat the same using a mixed model with
-a random intercept for CpG (this covariate gets added automatically if your data
+a random intercept by `CpG` (this covariate becomes available automatically if your data
 follows our conventions (see example data for details).
 
 ```Shell
@@ -143,7 +145,7 @@ chr1:2045413    2.883   2.999   3.199   3.136   3.246
 where rows are probes and columns are samples. The first column
 should be in the form chrom:position and *must be sorted*
 The columns of the methylation matrix must match the rows of the
-covariates:
+covariates (here: `TF0`, `FF1`, `TM2`, `TF3`, `FM4`, ...):
 
 ```Shell
 $ head -6 clustercorr/tests/example-covariates.txt
