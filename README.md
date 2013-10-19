@@ -1,4 +1,4 @@
-clustercorr
+c/lustercorr
 ===========
 
 fitting models to clustered correlated data.
@@ -6,44 +6,43 @@ fitting models to clustered correlated data.
 The Problem
 ===========
 
-You have methylation data that is not from cancer that has small changes
-that can only be detected across a region, *not* by a single CpG or a
-single probe.
+You have methylation data that with small, subtle changes that can not
+be detected at the single-CpG level and you want to detect regional changes.
 
 The Solution(s)
 ===============
 
 There are a number of methods for **combining** probes. The difficulty is that
-we can't use a simple linear model because we have *correlated* data. The most
+we can't use a simple linear model because we have **correlated** data. The most
 obvious approaches are:
 
- 1) *bumphuting* from Irizarry's group: find regions where a covariate from a
+ 1) **bumphuting** from Irizarry's group: find regions where a covariate from a
     model is consistently higher than by chance. In general "chance" is determined
     by shuffling the residuals of a reduced model, and re-calculating simulated
     betas. (they also implement smoothing and a number of nice additional features)
 
- 2) *mixed-effect models* we can fit a random intercept per CpG or per sample to
+ 2) **mixed-effect models**: fit a random intercept per CpG or per sample to
     account for correlated data.
 
- 3) *GEE models* we can used generalized estimating equations. This allows us,
+ 3) **GEE models**: use generalized estimating equations. This allows us,
     for example to fit an auto-regressive correlation structure, such as we
     might expect to see between adjacent probes. This was implemented nicely
-    in *A-clust*.
+    in `A-clust` (for exchange-able correlation structure only).
 
- 4) *stouffer-liptak* we can calculate the p-values for adjust probes
+ 4) **stouffer-liptak** calculate the p-values for adjacent probes
     independently then combine the p-values, taking the correlation
     among the probes into account.
 
 This package attempts to implement (some form of) all of those so that we can
 model our data with any one of them with a small change of parameters. To do
-so, it first *clusters the data* using aclust.
+so, it first **clusters the data** using `aclust`.
 
 Tutorial
 ========
 
 For the command-line, we assume the data is set up so that we have a file of
 covariates with rows of samples and a file of methylation data that is of shape
-**n_probes by n_samples**.
+**n_probes X n_samples**.
 
 For example, we may wish to use the stouffer-liptak correction on our data in
 this repository to find regions where methylation is related to disease.:
@@ -90,7 +89,7 @@ chr1    2106221 2106620 -0.0490555555556    0.14617070189   4   methylation ~ di
 chr1    2117424 2118131 -0.029962962963 0.195491513628  3   methylation ~ disease + (1|CpG) mixed-model
 ```
 
-Note that we change the model to add the random intercept in lme4 syntax.
+Note that we change the model to add the random intercept in `lme4` syntax.
 For most cases, we have similar p-values (and identical coefficients) as we did
 for the liptak method.
 
