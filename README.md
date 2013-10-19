@@ -166,11 +166,11 @@ So main points:
 
  1. data must be sorted
  2. methylation is n_probes * n_samples (+1 for index)
-    a. first column is index of chrom:postion
-    b. column headers are sample-ids matching first column from covariates
+     a. first column is index of chrom:postion
+     b. column headers are sample-ids matching first column from covariates
  3. covariates is n_samples * n_covariates (can have extra covarites even if
     not used in model.
-    a. first column must match first row from methylation file
+     a. first column must match first row from methylation file
 
 
 Generating Correlated Data
