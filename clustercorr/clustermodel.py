@@ -1,9 +1,10 @@
+import os
+import sys
+import warnings
 import numpy as np
 import pandas as pd
 from pyper import R
 import tempfile
-import os
-import warnings
 r = R(max_len=5e7, return_err=False)
 r('source("%s/mods.R")' % os.path.dirname(__file__))
 
@@ -22,7 +23,7 @@ def rcall(covs, model, kwargs=None):
     return ret
 
 def clustered_model(cov_df, cluster_df, model, gee_args=(), liptak=False,
-        bumping=False, skat=False):
+        bumping=False, skat=False, outlier_sds=None):
     """
     Given a cluster of (presumably) correlated CpG's. There are a number of
     methods one could employ to determine the association of the methylation
@@ -84,18 +85,36 @@ def clustered_model(cov_df, cluster_df, model, gee_args=(), liptak=False,
         skat - if set to True, use skat to test if modelling the CpG
                methylation better describes the dependent variable.
     """
-    with cov_cluster_setup(cov_df, cluster_df) as fh:
+
+    with cov_cluster_setup(cov_df, cluster_df, outlier_sds) as fh:
         return clustered_model_frame(fh.name, model, gee_args, liptak, bumping,
                                    skat)
 
+def set_outlier_nan(cluster_df, n_sds):
+    """
+    take cluster dataframe and set to nan
+    any values where that are > n_sds standard-deviations away
+    from the mean for that probe
+    """
+    #imean, isd = cluster_df.mean(axis=1), cluster_df.std(axis=1,
+    #        skipna=True)
 
-def cov_cluster_setup(cov_df, cluster_df):
+    for probe in cluster_df.index:
+        row = cluster_df.ix[probe, :]
+        m, s = row.mean(), row.std()
+        rng = (m - (n_sds * s)), (m + (n_sds * s))
+        row[((row < rng[0]) | (row > rng[1]))] = np.nan
+
+def cov_cluster_setup(cov_df, cluster_df, outlier_sds=None):
     """
     turn two dataframes, one for methylation and 1 for covariates into a
     single, long dataframe.
     (some) index from cov_df must match columns from cluster_df
     returns a file-handle of the merged dataframe.
     """
+    if outlier_sds:
+        set_outlier_nan(cluster_df, n_sds=outlier_sds)
+
     n_probes = cluster_df.shape[1]
     methylation = np.asarray(cluster_df).flatten()
 

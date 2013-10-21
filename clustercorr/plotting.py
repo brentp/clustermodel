@@ -7,9 +7,7 @@ import sys
 def half_horizontal_bar(data, pos, left=False, dmin=0, dmax=1, **kwargs):
     n_bins = 40
     ax = kwargs.pop('ax', plt.gca())
-
     bins = np.linspace(dmin, dmax, n_bins + 1)
-    #bins = np.linspace(data.min() - 0.01, data.max() + 0.01, n_bins + 1)
 
     counts, edges = np.histogram(data, bins=bins, density=True)
     counts = (0 + counts)
@@ -46,8 +44,9 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
 
     dmin = min(dmin, min(data2[key].min() for key in classes)) - 0.1
     dmax = max(dmax, min(data2[key].max() for key in classes)) + 0.1
+
     dmin = max(0, dmin)
-    dmax = min(1, dmax)
+    #dmax = min(1, dmax)
 
     for pos, key in zip(positions, classes):
         try:

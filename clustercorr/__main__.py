@@ -6,6 +6,7 @@ from clustercorr import feature_gen, cluster_to_dataframe, clustered_model
 
 def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
         rho_min=0.3, min_clust_size=2, sep="\t",
+        outlier_sds=None,
         liptak=False, bumping=False, gee_args=(), skat=False, png_path=None):
     # an iterable of feature objects
     feature_iter = feature_gen(fmeth, rho_min=rho_min)
@@ -29,7 +30,8 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
 
         # now we want to test a model on our clustered dataset.
         res = clustered_model(covs, cluster_df, model, gee_args=gee_args,
-                liptak=liptak, bumping=bumping, skat=skat)
+                liptak=liptak, bumping=bumping, skat=skat,
+                outlier_sds=outlier_sds)
         res['chrom'] = cluster[0].group
         res['start'] = cluster[0].start
         res['end'] = cluster[-1].end
@@ -156,6 +158,10 @@ def main(args=sys.argv[1:]):
                    "this ends with 'show', each plot will be shown in a window"
                    " if this contains the string 'spaghetti', it will draw a "
                    "a spaghetti plot, otherwise, it's a histogram plot")
+    p.add_argument('--outlier-sds', type=float, default=30,
+            help="remove points that are more than this many standard "
+                 "deviations away from the mean (only usable with GEEs"
+                 " and mixed-models which allow missing data")
 
     p.add_argument('model',
                    help="model in R syntax, e.g. 'methylation ~ disease'")
@@ -188,6 +194,7 @@ def main(args=sys.argv[1:]):
                           bumping=a.bumping,
                           gee_args=a.gee_args,
                           skat=a.skat,
+                          outlier_sds=a.outlier_sds,
                           png_path=a.png_path):
         c['method'] = method
         print fmt.format(**c)
