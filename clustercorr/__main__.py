@@ -40,16 +40,29 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
             if png_path is None:
                 yield res
                 continue
+            from matplotlib import pyplot as plt
+            from mpltools import style
+            style.use('ggplot')
+            f = plt.figure(figsize=(11, 4))
+            ax = f.add_subplot(1, 1, 1)
 
             region = "{chrom}_{start}_{end}".format(**res)
-            if png_path == 'show':
+            if png_path.endswith('show'):
                 png = None
             elif png_path.endswith(('.png', '.pdf')):
                 png = "%s.%s%s" % (png_path[:-4], region, png_path[-4:])
             elif png_path:
                 png = "%s.%s.png" % (png_path.rstrip("."), region)
-            #plot_dmr(covs, cluster_df, covariate, chrom, res, png)
-            plot_hbar(covs, cluster_df, covariate, chrom, res, png)
+            if 'spaghetti' in png_path:
+                plot_dmr(covs, cluster_df, covariate, chrom, res, png)
+            else:
+                plot_hbar(covs, cluster_df, covariate, chrom, res, png)
+            plt.title('p-value: %.3g %s: %.4f' % (res['p'], covariate, res['coef']))
+            f.set_tight_layout(True)
+            if png:
+                plt.savefig(png)
+            else:
+                plt.show()
         yield res
 
 # http://nbviewer.ipython.org/urls/raw.github.com/EnricoGiampieri/dataplot/master/statplot.ipynb
@@ -57,22 +70,22 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
 def plot_hbar(covs, cluster_df, covariate, chrom, res, png):
     from matplotlib import pyplot as plt
     from .plotting import hbar_plot
-    from mpltools import style
-    style.use('ggplot')
     group = getattr(covs, covariate)
     grps = list(set(group))
 
-    f = plt.figure(figsize=(12, 4))
-    ax = f.add_subplot(1, 1, 1)
+    ax = plt.gca()
     cdf = cluster_df.T
     cdf = 1 / (1 + np.exp(-cdf))
 
     d1 = dict(cdf.ix[group == grps[0], :].T.iterrows())
     d2 = dict(cdf.ix[group == grps[1], :].T.iterrows())
 
-    hbar_plot(d1, list(cdf.columns), d2, ax=ax, chrom=chrom)
-    plt.tight_layout()
-    plt.show()
+    r1, r2 = hbar_plot(d1, list(cdf.columns), d2, ax=ax, chrom=chrom)
+
+    ax.legend((r1, r2),
+             ("%s - %s" % (covariate, grps[0]),
+              "%s - %s" % (covariate, grps[1])),
+              loc='upper left')
 
 def plot_dmr(covs, cluster_df, covariate, chrom, res, png):
     from matplotlib import pyplot as plt
@@ -84,13 +97,14 @@ def plot_dmr(covs, cluster_df, covariate, chrom, res, png):
     cdf = 1 / (1 + np.exp(-cdf))
     cdf['group'] = getattr(covs, covariate)
 
-    plt.figure(figsize=(12, 4))
+    ax = plt.gca()
 
     if cdf.group.dtype == float:
-        ax = parallel_coordinates(cdf, 'group')
+        ax = parallel_coordinates(cdf, 'group', ax=ax)
         ax.get_legend().set_visible(False)
     else:
-        ax = parallel_coordinates(cdf, 'group', colors=('#764AE7', '#E81C0E'))
+        ax = parallel_coordinates(cdf, 'group', colors=('#764AE7', '#E81C0E'),
+                ax=ax)
         lbls = ax.get_legend().get_texts()
 
         for lbl in lbls:
@@ -100,14 +114,7 @@ def plot_dmr(covs, cluster_df, covariate, chrom, res, png):
         ax.set_xticklabels([x.get_text() for x in ax.get_xticklabels()],
                           rotation=10)
 
-
-    plt.ylabel('methylation')
-    plt.title('p-value: %.3g %s: %.4f' % (res['p'], covariate, res['coef']))
-    plt.tight_layout()
-    if png:
-        plt.savefig(png)
-    else:
-        plt.show()
+    ax.set_ylabel('methylation')
 
 def main_example():
     fcovs = "clustercorr/tests/example-covariates.txt"
@@ -145,7 +152,10 @@ def main(args=sys.argv[1:]):
                     help="maximum distance beyond which a probe can not be"
                     " added to a cluster")
     p.add_argument('--png-path',
-                   help="path to save a png of regions with low p-values")
+                   help="path to save a png of regions with low p-values. If "
+                   "this ends with 'show', each plot will be shown in a window"
+                   " if this contains the string 'spaghetti', it will draw a "
+                   "a spaghetti plot, otherwise, it's a histogram plot")
 
     p.add_argument('model',
                    help="model in R syntax, e.g. 'methylation ~ disease'")

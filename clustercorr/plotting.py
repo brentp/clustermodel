@@ -12,17 +12,16 @@ def half_horizontal_bar(data, pos, left=False, dmin=0, dmax=1, **kwargs):
     #bins = np.linspace(data.min() - 0.01, data.max() + 0.01, n_bins + 1)
 
     counts, edges = np.histogram(data, bins=bins, density=True)
-    counts = np.log(1 + counts)
+    counts = (0 + counts)
 
     bsize = edges[1] - edges[0]
-    counts /= (2.5 * float(counts.max())
+    counts /= (2.5 * float(counts.max()))
 
     if left:
         counts *= -1
-    print >>sys.stderr, pos
 
     pos += (-0.0002 if left else 0.0002)
-    ax.barh(edges[:n_bins], counts, bsize, left=pos, **kwargs)
+    return ax.barh(edges[:n_bins], counts, bsize, left=pos, **kwargs)[0]
     return
 
     keep = ~np.isnan(data)
@@ -57,13 +56,15 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
             d1, d2 = data1[pos], data2[pos]
         color1 = kwargs.pop('color1', 'b')
         color2 = kwargs.pop('color2', 'b' if data1 is data2 else 'r')
-        half_horizontal_bar(d1, pos, False, facecolor=color1, dmin=dmin,
+        shape1 = half_horizontal_bar(d1, pos, False, facecolor=color1, dmin=dmin,
                 dmax=dmax)
-        half_horizontal_bar(d2, pos, True, facecolor=color2, dmin=dmin,
+        shape2 = half_horizontal_bar(d2, pos, True, facecolor=color2, dmin=dmin,
                 dmax=dmax)
 
     ax.set_ylim(dmin, dmax)
     ax.set_xticks(positions)
+    ax.set_xlim(-0.5, max(positions) + 0.5)
     if chrom: chrom += ":"
     ax.set_xticklabels(["%s%s" % (chrom, "{:,}".format(i)) for i in classes],
             rotation=15 if len(classes) > 8 else 0)
+    return shape1, shape2
