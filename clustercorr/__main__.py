@@ -70,8 +70,8 @@ def plot_hbar(covs, cluster_df, covariate, chrom, res, png):
     d1 = dict(cdf.ix[group == grps[0], :].T.iterrows())
     d2 = dict(cdf.ix[group == grps[1], :].T.iterrows())
 
-    hbar_plot(d1, cdf.columns, d2, ax=ax)
-
+    hbar_plot(d1, list(cdf.columns), d2, ax=ax, chrom=chrom)
+    plt.tight_layout()
     plt.show()
 
 def plot_dmr(covs, cluster_df, covariate, chrom, res, png):
