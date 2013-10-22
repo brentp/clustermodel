@@ -2,6 +2,7 @@ import sys
 import numpy as np
 import pandas as pd
 from aclust import aclust
+from .plotting import plot_dmr, plot_hbar
 from clustercorr import feature_gen, cluster_to_dataframe, clustered_model
 
 def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
@@ -67,56 +68,6 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
                 plt.show()
         yield res
 
-# http://nbviewer.ipython.org/urls/raw.github.com/EnricoGiampieri/dataplot/master/statplot.ipynb
-
-def plot_hbar(covs, cluster_df, covariate, chrom, res, png):
-    from matplotlib import pyplot as plt
-    from .plotting import hbar_plot
-    group = getattr(covs, covariate)
-    grps = list(set(group))
-
-    ax = plt.gca()
-    cdf = cluster_df.T
-    cdf = 1 / (1 + np.exp(-cdf))
-
-    d1 = dict(cdf.ix[group == grps[0], :].T.iterrows())
-    d2 = dict(cdf.ix[group == grps[1], :].T.iterrows())
-
-    r1, r2 = hbar_plot(d1, list(cdf.columns), d2, ax=ax, chrom=chrom)
-
-    ax.legend((r1, r2),
-             ("%s - %s" % (covariate, grps[0]),
-              "%s - %s" % (covariate, grps[1])),
-              loc='upper left')
-
-def plot_dmr(covs, cluster_df, covariate, chrom, res, png):
-    from matplotlib import pyplot as plt
-    import numpy as np
-    from pandas.tools.plotting import parallel_coordinates
-
-    cdf = cluster_df.T
-    cdf.columns = ['%s:%s' % (chrom, "{:,}".format(p)) for p in cdf.columns]
-    cdf = 1 / (1 + np.exp(-cdf))
-    cdf['group'] = getattr(covs, covariate)
-
-    ax = plt.gca()
-
-    if cdf.group.dtype == float:
-        ax = parallel_coordinates(cdf, 'group', ax=ax)
-        ax.get_legend().set_visible(False)
-    else:
-        ax = parallel_coordinates(cdf, 'group', colors=('#764AE7', '#E81C0E'),
-                ax=ax)
-        lbls = ax.get_legend().get_texts()
-
-        for lbl in lbls:
-            lbl.set_text(covariate + ' ' + lbl.get_text())
-
-    if len(cdf.columns) > 6:
-        ax.set_xticklabels([x.get_text() for x in ax.get_xticklabels()],
-                          rotation=10)
-
-    ax.set_ylabel('methylation')
 
 def main_example():
     fcovs = "clustercorr/tests/example-covariates.txt"
