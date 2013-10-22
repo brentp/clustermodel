@@ -1,7 +1,9 @@
 # from: http://nbviewer.ipython.org/urls/raw.github.com/EnricoGiampieri/dataplot/master/statplot.ipynb
 from scipy.stats import gaussian_kde, sem
 import numpy as np
+import pandas as pd
 import pylab as plt
+from collections import OrderedDict
 import sys
 
 def half_horizontal_bar(data, pos, left=False, dmin=0, dmax=1, **kwargs):
@@ -55,9 +57,9 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
             d1, d2 = data1[pos], data2[pos]
         color1 = kwargs.pop('color1', 'b')
         color2 = kwargs.pop('color2', 'b' if data1 is data2 else 'r')
-        shape1 = half_horizontal_bar(d1, pos, False, facecolor=color1, dmin=dmin,
+        shape1 = half_horizontal_bar(d1, pos, True, facecolor=color1, dmin=dmin,
                 dmax=dmax)
-        shape2 = half_horizontal_bar(d2, pos, True, facecolor=color2, dmin=dmin,
+        shape2 = half_horizontal_bar(d2, pos, False, facecolor=color2, dmin=dmin,
                 dmax=dmax)
 
     ax.set_ylim(dmin, dmax)
@@ -71,14 +73,14 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
 def plot_hbar(covs, cluster_df, covariate, chrom, res, png):
     from matplotlib import pyplot as plt
     group = getattr(covs, covariate)
-    grps = list(set(group))
+    grps = sorted(list(set(group)))
 
     ax = plt.gca()
     cdf = cluster_df.T
     #cdf = 1 / (1 + np.exp(-cdf))
 
-    d1 = dict(cdf.ix[group == grps[0], :].T.iterrows())
-    d2 = dict(cdf.ix[group == grps[1], :].T.iterrows())
+    d1 = OrderedDict(cdf.ix[group == grps[0], :].T.iterrows())
+    d2 = OrderedDict(cdf.ix[group == grps[1], :].T.iterrows())
 
     r1, r2 = hbar_plot(d1, list(cdf.columns), d2, ax=ax, chrom=chrom)
 
@@ -86,6 +88,24 @@ def plot_hbar(covs, cluster_df, covariate, chrom, res, png):
              ("%s - %s" % (covariate, grps[0]),
               "%s - %s" % (covariate, grps[1])),
               loc='upper left')
+
+def plot_continuous(covs, cluster_df, covariate, chrom, res, png):
+    from matplotlib import pyplot as plt
+    import numpy as np
+
+    fig, axes = plt.subplots(ncols=cluster_df.shape[0])
+    cdf = cluster_df.T
+    #cdf.columns = ['%s:%s' % (chrom, "{:,}".format(p)) for p in cdf.columns]
+
+    for i, c in enumerate(cdf.columns):
+        ax = axes[i]
+        cname = "%s:%s" % (chrom, "{:,}".format(c))
+        ax.plot(cdf[c], getattr(covs, covariate), marker='o', ls='none')
+        ax.set_title(cname)
+        ax.set_ylabel(covariate)
+        ax.set_xlabel('methylation')
+    return fig
+
 
 def plot_dmr(covs, cluster_df, covariate, chrom, res, png):
     from matplotlib import pyplot as plt
