@@ -1,6 +1,5 @@
 import sys
 from toolshed import nopen
-import itertools
 
 import numpy as np
 import pandas as pd

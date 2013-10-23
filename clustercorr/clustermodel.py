@@ -101,7 +101,8 @@ def set_outlier_nan(cluster_df, n_sds):
 
     for probe in cluster_df.index:
         row = cluster_df.ix[probe, :]
-        m, s = row.mean(), row.std()
+        rown = row[~np.isnan(row)]
+        m, s = rown.mean(), rown.std()
         rng = (m - (n_sds * s)), (m + (n_sds * s))
         row[((row < rng[0]) | (row > rng[1]))] = np.nan
 
