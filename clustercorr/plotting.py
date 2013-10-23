@@ -47,7 +47,7 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
     dmin = min(dmin, min(data2[key].min() for key in classes)) - 0.1
     dmax = max(dmax, min(data2[key].max() for key in classes)) + 0.1
 
-    dmin = max(0, dmin)
+    #dmin = max(0, dmin)
     #dmax = min(1, dmax)
 
     for pos, key in zip(positions, classes):

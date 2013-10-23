@@ -54,7 +54,7 @@ stouffer_liptak.run = function(covs, formula){
 }
 
 # for bumping
-permute.residuals = function(mat, mod, mod0, iterations=100, p_samples=1, mc.cores=6){
+permute.residuals = function(mat, mod, mod0, iterations=100, p_samples=1, mc.cores=10){
     stopifnot(nrow(mod) == ncol(mat))
 
     reduced_lm = lmFit(mat, mod0)
@@ -85,7 +85,11 @@ permute.residuals = function(mat, mod, mod0, iterations=100, p_samples=1, mc.cor
 }
 
 sum.lowess = function(icoefs, weights, span=0.2){
-    sum(limma::loessFit(icoefs, as.integer(names(icoefs)), span=span, weights=weights)$fitted)
+    if(length(icoefs) < 3){ return(sum(icoefs)) }
+    res = try(limma::loessFit(icoefs, as.integer(names(icoefs)),
+                              span=span, weights=weights), silent=TRUE)
+    if(class(res) == "try-error") return(sum(icoefs))
+    return(sum(res$fitted))
 }
 
 bumping.run = function(covs, formula, n_sims=100){
@@ -154,7 +158,7 @@ skat.run = function(covs, formula){
   #sk <- SKAT(meth, obj, is_check_genotype=FALSE, method="davies", r.corr=0.6, kernel="linear")
   sk <- SKAT(meth, obj, is_check_genotype=FALSE, method="optimal.adj", kernel="linear")
   #sink()
-  return(c(covariate, sk$p.value))
+  return(c(covariate, sk$p.value, 'nan'))
 
 }
 

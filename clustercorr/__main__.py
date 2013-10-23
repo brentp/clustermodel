@@ -2,8 +2,15 @@ import sys
 import numpy as np
 import pandas as pd
 from aclust import aclust
-from .plotting import plot_dmr, plot_hbar
+from .plotting import plot_dmr, plot_hbar, plot_continuous
 from clustercorr import feature_gen, cluster_to_dataframe, clustered_model
+
+
+def is_numeric(pd_series):
+    if np.issubdtype(pd_series.dtype, int) or \
+        np.issubdtype(pd_series.dtype, float):
+        return len(pd_series.unique()) > 2
+    return False
 
 def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
         rho_min=0.3, min_clust_size=2, sep="\t",
@@ -46,8 +53,6 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
             from matplotlib import pyplot as plt
             from mpltools import style
             style.use('ggplot')
-            f = plt.figure(figsize=(11, 4))
-            ax = f.add_subplot(1, 1, 1)
 
             region = "{chrom}_{start}_{end}".format(**res)
             if png_path.endswith('show'):
@@ -56,11 +61,17 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
                 png = "%s.%s%s" % (png_path[:-4], region, png_path[-4:])
             elif png_path:
                 png = "%s.%s.png" % (png_path.rstrip("."), region)
-            if 'spaghetti' in png_path:
-                plot_dmr(covs, cluster_df, covariate, chrom, res, png)
+
+            if is_numeric(getattr(covs, covariate)):
+                f = plot_continuous(covs, cluster_df, covariate, chrom, res, png)
             else:
-                plot_hbar(covs, cluster_df, covariate, chrom, res, png)
-            plt.title('p-value: %.3g %s: %.4f' % (res['p'], covariate, res['coef']))
+                f = plt.figure(figsize=(11, 4))
+                ax = f.add_subplot(1, 1, 1)
+                if 'spaghetti' in png_path:
+                    plot_dmr(covs, cluster_df, covariate, chrom, res, png)
+                else:
+                    plot_hbar(covs, cluster_df, covariate, chrom, res, png)
+                plt.title('p-value: %.3g %s: %.3f' % (res['p'], covariate, res['coef']))
             f.set_tight_layout(True)
             if png:
                 plt.savefig(png)
@@ -154,5 +165,8 @@ if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == "example":
         sys.exit(main_example())
+    if len(sys.argv) > 1 and sys.argv[1] == "simulate":
+        from . import simulate
+        sys.exit(simulate.main(sys.argv[2:]))
 
     main()
