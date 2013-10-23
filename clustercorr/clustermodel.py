@@ -182,31 +182,3 @@ def clustered_model_frame(fname_df, model, gee_args=(), liptak=False,
     else:
         raise Exception('must specify one of skat/liptak/bumping/gee_args'
                         ' or specify a mixed-effect model in lme4 syntax')
-
-def run_all(base_model, fname, pvals):
-    """
-    given a base_model, e.g.:
-        methylation ~ asthma + age + gender
-    run all implemented methods, e.g. by using:
-    methylation ~ asthma + age + gender + (1|CpG) for a mixed-model.
-    also runs the GEE AR and EX models along with bumphunding and liptak.
-    """
-    coefs = {}
-    for name, kwargs in {'liptak': dict(liptak=True),
-            'bumping': dict(bumping=True),
-            'gee ex': dict(gee_args=('ex', 'CpG')),
-            'gee ar': dict(gee_args=('ar', 'id')),
-            #'gee ar fixed cpg': dict(gee_args=("ar", "id"),
-            #                         model="{base} +
-            #                         CpG".format(base=base_model)),
-            '1|CpG': dict(model="{base} + (1|CpG)".format(base=base_model)),
-            '1|CpG 1|id': dict(model=
-                "{base} + (1|CpG) + (1|id)".format(base=base_model))}.iteritems():
-        model = kwargs.pop('model') if 'model' in kwargs else base_model
-        res = clustered_model_frame(fname, model, **kwargs)
-        coefs[name] = res.get('coef')
-        pvals[name].append(res['p'])
-
-    for k, v in pvals.iteritems():
-        print "%-17s\t%.4g\t%.4f" % (k, v[-1], coefs[k])
-
