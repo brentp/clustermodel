@@ -1,6 +1,7 @@
 import sys
 import numpy as np
 import pandas as pd
+import collections
 from aclust import aclust
 from .plotting import plot_dmr, plot_hbar, plot_continuous
 from clustercorr import feature_gen, cluster_to_dataframe, clustered_model
@@ -12,10 +13,28 @@ def is_numeric(pd_series):
         return len(pd_series.unique()) > 2
     return False
 
+def print_compare(res, fmt, header=False):
+
+    # lots of entries in res, we just want the ones with the
+    # coefficients and p-values
+    keys = [x for x in res.keys() if isinstance(res[x], tuple)
+                                  and len(res[x]) == 2]
+    cols = [x.replace(" ", "_") for x in keys]
+    if header:
+        h = "#" + fmt.replace("}", "").replace("{", "")
+        h += "\t".join("p_{c}\tcoef_{c}".format(c=c) for c in cols)
+        print h
+    line = fmt.format(**res)
+    vals = []
+    for k in keys:
+        vals.append("%.4g\t%.3f" % res[k])
+    print line + "\t" + "\t".join(vals)
+
 def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
         rho_min=0.3, min_clust_size=2, sep="\t",
         outlier_sds=None,
-        liptak=False, bumping=False, gee_args=(), skat=False, png_path=None):
+        liptak=False, bumping=False, gee_args=(), skat=False, png_path=None,
+        compare=False):
     # an iterable of feature objects
     feature_iter = feature_gen(fmeth, rho_min=rho_min)
 
@@ -29,6 +48,10 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
 
     covariate = model.split("~")[1].split("+")[0].strip()
 
+    if compare:
+        compare = {"p": collections.defaultdict(list),
+                   "coef": collections.defaultdict(list)}
+
     for cluster in cluster_gen:
         chrom = cluster[0].group
 
@@ -39,17 +62,18 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
         # now we want to test a model on our clustered dataset.
         res = clustered_model(covs, cluster_df, model, gee_args=gee_args,
                 liptak=liptak, bumping=bumping, skat=skat,
-                outlier_sds=outlier_sds)
+                outlier_sds=outlier_sds, compare=compare)
         res['chrom'] = cluster[0].group
         res['start'] = cluster[0].start
         res['end'] = cluster[-1].end
         res['n_probes'] = len(cluster)
 
+        if compare:
+            yield res
+            continue
 
-        if res['p'] < 1e-4:
-            if png_path is None:
-                yield res
-                continue
+
+        if res['p'] < 1e-4 and png_path is not None:
             from matplotlib import pyplot as plt
             from mpltools import style
             style.use('ggplot')
@@ -101,7 +125,8 @@ def main(args=sys.argv[1:]):
                        help='comma-delimited correlation-structure, variable')
     group.add_argument('--liptak', action="store_true")
     group.add_argument('--bumping', action="store_true")
-
+    group.add_argument('--compare', action="store_true",
+                       help='run all methods and compare')
 
     cp = p.add_argument_group('clustering parameters')
     cp.add_argument('--rho-min', type=float, default=0.3,
@@ -141,13 +166,19 @@ def main(args=sys.argv[1:]):
         if a.liptak: method = 'liptak'
         elif a.bumping: method = 'bumping'
         elif a.skat: method = 'skat'
+        elif a.compare: method = 'compare'
         else:
             assert "|" in a.model
             method = "mixed-model"
 
-    fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{method}"
-    print "#" + fmt.replace("}", "").replace("{", "")
-    for c in clustermodel(a.covs, a.methylation, a.model,
+    if a.compare:
+        fmt = "{chrom}\t{start}\t{end}\t{n_probes}\t"
+    else:
+        fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{method}"
+        print "#" + fmt.replace("}", "").replace("{", "")
+
+    for i, c in enumerate(clustermodel(a.covs,
+                          a.methylation, a.model,
                           max_dist=a.max_dist,
                           linkage=a.linkage,
                           rho_min=a.rho_min,
@@ -157,9 +188,14 @@ def main(args=sys.argv[1:]):
                           gee_args=a.gee_args,
                           skat=a.skat,
                           outlier_sds=a.outlier_sds,
-                          png_path=a.png_path):
-        c['method'] = method
-        print fmt.format(**c)
+                          png_path=a.png_path,
+                          compare=a.compare)):
+        if a.compare:
+            print_compare(c, fmt, header=i==0)
+
+        else:
+            c['method'] = method
+            print fmt.format(**c)
 
 if __name__ == "__main__":
     import sys

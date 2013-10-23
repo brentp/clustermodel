@@ -23,7 +23,7 @@ def rcall(covs, model, kwargs=None):
     return ret
 
 def clustered_model(cov_df, cluster_df, model, gee_args=(), liptak=False,
-        bumping=False, skat=False, outlier_sds=None):
+        bumping=False, skat=False, outlier_sds=None, compare=False):
     """
     Given a cluster of (presumably) correlated CpG's. There are a number of
     methods one could employ to determine the association of the methylation
@@ -88,7 +88,7 @@ def clustered_model(cov_df, cluster_df, model, gee_args=(), liptak=False,
 
     with cov_cluster_setup(cov_df, cluster_df, outlier_sds) as fh:
         return clustered_model_frame(fh.name, model, gee_args, liptak, bumping,
-                                   skat)
+                                   skat, compare)
 
 def set_outlier_nan(cluster_df, n_sds):
     """
@@ -157,13 +157,15 @@ def cov_cluster_setup(cov_df, cluster_df, outlier_sds=None):
     return fh
 
 def clustered_model_frame(fname_df, model, gee_args=(), liptak=False,
-        bumping=False, skat=False):
+        bumping=False, skat=False, compare=False):
     """
     the arguments to this function are identical to clustered_model()
     except that fname_df is the file-name of a dataframe.to_csv()
     this allows calling a number of methods without writing to a new
     file each time
     """
+    if compare:
+        return run_all(model, fname_df, compare)
 
     if "|" in model:
         assert not any((skat, liptak, bumping, gee_args))
@@ -183,7 +185,7 @@ def clustered_model_frame(fname_df, model, gee_args=(), liptak=False,
         raise Exception('must specify one of skat/liptak/bumping/gee_args'
                         ' or specify a mixed-effect model in lme4 syntax')
 
-def run_all(base_model, fname, pvals):
+def run_all(base_model, fname, results):
     """
     given a base_model, e.g.:
         methylation ~ asthma + age + gender
@@ -191,22 +193,30 @@ def run_all(base_model, fname, pvals):
     methylation ~ asthma + age + gender + (1|CpG) for a mixed-model.
     also runs the GEE AR and EX models along with bumphunding and liptak.
     """
-    coefs = {}
+    # switch for skat # methylatoin ~ disease + age => disease + age
+    sk_model = base_model.split("~")[1].strip()
+    # disease, +, age
+    sk_model = sk_model.split()
+    sk_model = sk_model[0] + " ~ " + (" + ".join(t for t in sk_model[1:] if t != "+") or "1")
+
+    ret = {}
+
     for name, kwargs in {'liptak': dict(liptak=True),
             'bumping': dict(bumping=True),
-            'gee ex': dict(gee_args=('ex', 'CpG')),
-            'gee ar': dict(gee_args=('ar', 'id')),
+            'gee_ex': dict(gee_args=('ex', 'CpG')),
+            'gee_ar': dict(gee_args=('ar', 'id')),
             #'gee ar fixed cpg': dict(gee_args=("ar", "id"),
             #                         model="{base} +
             #                         CpG".format(base=base_model)),
+            'skat': dict(skat=True, model=sk_model),
+            'liptak': dict(liptak=True),
             '1|CpG': dict(model="{base} + (1|CpG)".format(base=base_model)),
-            '1|CpG 1|id': dict(model=
-                "{base} + (1|CpG) + (1|id)".format(base=base_model))}.iteritems():
+            '1|CpG_1|id': dict(model= "{base} + (1|CpG) + (1|id)"\
+                    .format(base=base_model))}.iteritems():
         model = kwargs.pop('model') if 'model' in kwargs else base_model
         res = clustered_model_frame(fname, model, **kwargs)
-        coefs[name] = res.get('coef')
-        pvals[name].append(res['p'])
-
-    for k, v in pvals.iteritems():
-        print "%-17s\t%.4g\t%.4f" % (k, v[-1], coefs[k])
+        results['p'][name].append(res['p'])
+        results['coef'][name].append(res.get('coef'))
+        ret[name] = (res['p'], res['coef'])
+    return ret
 
