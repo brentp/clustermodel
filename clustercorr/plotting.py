@@ -1,10 +1,7 @@
 # from: http://nbviewer.ipython.org/urls/raw.github.com/EnricoGiampieri/dataplot/master/statplot.ipynb
-from scipy.stats import gaussian_kde, sem
 import numpy as np
-import pandas as pd
 import pylab as plt
 from collections import OrderedDict
-import sys
 
 def half_horizontal_bar(data, pos, left=False, dmin=0, dmax=1, **kwargs):
     n_bins = 40
@@ -22,17 +19,8 @@ def half_horizontal_bar(data, pos, left=False, dmin=0, dmax=1, **kwargs):
 
     pos += (-0.0002 if left else 0.0002)
     return ax.barh(edges[:n_bins], counts, bsize, left=pos, **kwargs)[0]
-    return
 
-    keep = ~np.isnan(data)
-    x = bins
-    v = gaussian_kde(data[keep]).evaluate(x)
-    v = 0.33 * v/v.max() * (-1 if left else 1)
-
-    kwargs['edgecolor'] = 'k'
-    kwargs['alpha'] = 0.33
-    kwargs['zorder'] = -1
-    ax.fill_betweenx(x, pos, pos+v, **kwargs)
+COLORS = '#348ABD #7A68A6 #A60628 #467821 #CF4457 #188487 #E24A33'.split()
 
 def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
     ax = kwargs.get('ax', plt.gca())
@@ -55,11 +43,9 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
             d1, d2 = data1[key], data2[key]
         except TypeError:
             d1, d2 = data1[pos], data2[pos]
-        color1 = kwargs.pop('color1', 'b')
-        color2 = kwargs.pop('color2', 'b' if data1 is data2 else 'r')
-        shape1 = half_horizontal_bar(d1, pos, True, facecolor=color1, dmin=dmin,
+        shape1 = half_horizontal_bar(d1, pos, True, facecolor=COLORS[0], dmin=dmin,
                 dmax=dmax)
-        shape2 = half_horizontal_bar(d2, pos, False, facecolor=color2, dmin=dmin,
+        shape2 = half_horizontal_bar(d2, pos, False, facecolor=COLORS[3], dmin=dmin,
                 dmax=dmax)
 
     ax.set_ylim(dmin, dmax)
