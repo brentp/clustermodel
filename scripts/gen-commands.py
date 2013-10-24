@@ -3,18 +3,20 @@ script to generate a bunch of bash/bsub commands so we can run all possible
 methods on a cluster in order to compare them.
 """
 import os
+import sys
 
 base_model="methylation ~ case"
-covs="work/tcga.fake.covs.txt"
-meth="work/tcga.fake.meth.txt"
-out = "work/out"
 
+covs = sys.argv[1]
+meth = sys.argv[2]
+out  = sys.argv[3]
 
 group = os.path.splitext(os.path.basename(covs))[0]
 sds = ""
+
 extra = "| bsub -J {name} -e logs/{name}.err -o logs/{name}.out -M 2000000"
 
-base_cmd = "echo 'python -m clustercorr \"{model}\" {covs} {meth} {method} {sds} > {out}/{name}.{group}.bed "
+base_cmd = "echo 'python -m clustercorr \"{model}\" {covs} {meth} {method} {sds} > {out}/{name}.{group}.pvals.bed "
 base_cmd += "'" + extra
 
 # switch for skat # methylatoin ~ disease + age => disease + age
@@ -31,17 +33,9 @@ for name in ("liptak", "bumping"):
 print base_cmd.format(name="skat", method="--skat", model=sk_model,
         group=group, out=out, sds=sds, covs=covs, meth=meth, extra=extra)
 
-for isds in (0, 3, 4, 5):
+for isds in (0, 3):
     sds = "--outlier-sds %i" % isds
     method = ""
-
-    model = base_model + " + (1|CpG)"
-    name = "cpg_intercept-sds_%i" % isds
-    print base_cmd.format(**locals())
-
-    model = base_model + " + (1|id)"
-    name = "id_intercept-sds_%i" % isds
-    print base_cmd.format(**locals())
 
     model = base_model + " + (1|CpG) + (1|id)"
     name = "both_intercept-sds_%i" % isds
