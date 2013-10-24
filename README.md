@@ -1,4 +1,4 @@
-c/lustercorr
+clustercorr
 ===========
 
 fitting models to clustered correlated data.
@@ -8,10 +8,10 @@ The Problem
 
 You have methylation data that with small, subtle changes that can not
 be detected at the single-CpG level and you want to detect regional changes.
-Here is an example of the subtle changes across a region with disease in red
+Here is an example of the subtle changes across a region with disease in green
 vs control in blue (image created by this software):
 
-![DMR Plot](https://gist.github.com/brentp/204899d3d220ce8a6acd/raw/3d89bc41effa837e646ab112c30c2124550cba95/dmr.png)
+![DMR Plot](https://gist.github.com/brentp/204899d3d220ce8a6acd/raw/dd2ef05d22011a77f8020377eede94942ec6e01c/dmr.png)
 
 The Solution(s)
 ===============
