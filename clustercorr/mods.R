@@ -37,7 +37,11 @@ stouffer_liptak.run = function(covs, formula){
   rownames(meth) = meth$CpG
   meth = as.matrix(meth[,2:ncol(meth)], nrow=nrow(meth))
   covs = covs[covs$CpG == unique(covs$CpG)[1],]
-  mod = model.matrix(formula, covs) 
+  # account for missing data in methylation
+  cc = complete.cases(t(meth))
+  meth = meth[,cc]
+  # TODO: what if missing data in covariates.
+  mod = model.matrix(formula, covs[cc,])
   covariate = colnames(mod)[1 + as.integer(colnames(mod)[1] == "(Intercept)")]
 
   fit = eBayes(lmFit(meth, mod))
@@ -98,8 +102,12 @@ bumping.run = function(covs, formula, n_sims=100){
     rownames(meth) = meth$CpG
     meth = as.matrix(meth[,2:ncol(meth)], nrow=nrow(meth))
     acovs = covs[covs$CpG == unique(covs$CpG)[1],]
+
+    # remove probes with missing data in meth
+    cc = complete.cases(t(meth))
+    meth = meth[,cc]
   
-    mod = model.matrix(formula, acovs)
+    mod = model.matrix(formula, acovs[cc,])
     covariate = colnames(mod)[1 + as.integer(colnames(mod)[1] == "(Intercept)")]
     mod0 = mod[,!colnames(mod) == covariate, drop=FALSE]
   
@@ -150,13 +158,20 @@ skat.run = function(covs, formula){
   meth = dcast(covs, CpG ~ id, value.var="methylation")
   rownames(meth) = meth$CpG
   meth = t(as.matrix(meth[,2:ncol(meth)], nrow=nrow(meth)))
+
+  #cc = complete.cases(meth)
+  #meth = meth[cc,]
+
   covariate = all.vars(formula)[1]
   #write.csv(covs, file="/tmp/sk.csv")
   covs = covs[covs$CpG == unique(covs$CpG)[1],]
+  #covs = covs[cc,]
 
   capture.output(obj <- SKAT_Null_Model(formula, out_type="D", data=covs))
   #sk <- SKAT(meth, obj, is_check_genotype=FALSE, method="davies", r.corr=0.6, kernel="linear")
   sk <- SKAT(meth, obj, is_check_genotype=FALSE, method="optimal.adj", kernel="linear")
+  #sk <- SKAT(meth, obj, is_check_genotype=TRUE, method="optimal.adj", kernel="linear.weighted", weights.beta=c(1, 10))
+  #sk <- SKAT(meth, obj, is_check_genotype=TRUE, method="optimal.adj", kernel="linear")
   #sink()
   return(c(covariate, sk$p.value, 'nan'))
 
