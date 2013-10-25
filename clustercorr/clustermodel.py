@@ -14,7 +14,7 @@ def rcall(covs, model, kwargs=None):
     """
     if kwargs is None: kwargs = {}
     kwargs_str = ", ".join("%s='%s'" % (k, v) for k, v in kwargs.iteritems())
-    r("a <- fclust.lm('%s', '%s', %s)" % (covs, model, kwargs_str))
+    r("a <- c('nan', 'nan', 'nan'); a <- fclust.lm('%s', '%s', %s)" % (covs, model, kwargs_str))
     vals = r['a']
     ret = dict(covariate=vals[0], p=float(vals[1]), model=model)
     if len(vals) > 2:
