@@ -12,13 +12,30 @@ def is_numeric(pd_series):
         return len(pd_series.unique()) > 2
     return False
 
+def run_model(cluster, covs, model, outlier_sds, liptak, bumping, gee_args,
+        skat):
+    chrom = cluster[0].group
+
+    # we turn the cluster list into a pandas dataframe with columns
+    # of samples and rows of probes. these must match our covariates
+    cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
+
+        # now we want to test a model on our clustered dataset.
+    res = clustered_model(covs, cluster_df, model, gee_args=gee_args,
+                liptak=liptak, bumping=bumping, skat=skat,
+                outlier_sds=outlier_sds)
+    res['chrom'] = cluster[0].group
+    res['start'] = cluster[0].start
+    res['end'] = cluster[-1].end
+    res['n_probes'] = len(cluster)
+    return res
+
 def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
         rho_min=0.3, min_clust_size=2, sep="\t",
         outlier_sds=None,
         liptak=False, bumping=False, gee_args=(), skat=False, png_path=None):
     # an iterable of feature objects
     feature_iter = feature_gen(fmeth, rho_min=rho_min)
-
     assert min_clust_size > 1
 
     cluster_gen = (c for c in aclust(feature_iter, max_dist=max_dist,
@@ -26,58 +43,45 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
                     if len(c) >= min_clust_size)
 
     covs = pd.read_table(fcovs, index_col=0, sep=sep)
-
     covariate = model.split("~")[1].split("+")[0].strip()
 
     for cluster in cluster_gen:
-        chrom = cluster[0].group
+        res = run_model(cluster, covs, model, outlier_sds, liptak, bumping, gee_args,
+                skat)
 
-        # we turn the cluster list into a pandas dataframe with columns
-        # of samples and rows of probes. these must match our covariates
-        cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
-
-        # now we want to test a model on our clustered dataset.
-        res = clustered_model(covs, cluster_df, model, gee_args=gee_args,
-                liptak=liptak, bumping=bumping, skat=skat,
-                outlier_sds=outlier_sds)
-        res['chrom'] = cluster[0].group
-        res['start'] = cluster[0].start
-        res['end'] = cluster[-1].end
-        res['n_probes'] = len(cluster)
-
-
-        if res['p'] < 1e-4:
-            if png_path is None:
-                yield res
-                continue
-            from matplotlib import pyplot as plt
-            from mpltools import style
-            style.use('ggplot')
-
-            region = "{chrom}_{start}_{end}".format(**res)
-            if png_path.endswith('show'):
-                png = None
-            elif png_path.endswith(('.png', '.pdf')):
-                png = "%s.%s%s" % (png_path[:-4], region, png_path[-4:])
-            elif png_path:
-                png = "%s.%s.png" % (png_path.rstrip("."), region)
-
-            if is_numeric(getattr(covs, covariate)):
-                f = plot_continuous(covs, cluster_df, covariate, chrom, res, png)
-            else:
-                f = plt.figure(figsize=(11, 4))
-                ax = f.add_subplot(1, 1, 1)
-                if 'spaghetti' in png_path:
-                    plot_dmr(covs, cluster_df, covariate, chrom, res, png)
-                else:
-                    plot_hbar(covs, cluster_df, covariate, chrom, res, png)
-                plt.title('p-value: %.3g %s: %.3f' % (res['p'], covariate, res['coef']))
-            f.set_tight_layout(True)
-            if png:
-                plt.savefig(png)
-            else:
-                plt.show()
+        if res['p'] < 1e-4 and png_path:
+            cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
+            plot_res(res, png_path, covs, covariate, cluster_df)
         yield res
+
+def plot_res(res, png_path, covs, covariate, cluster_df):
+    from matplotlib import pyplot as plt
+    from mpltools import style
+    style.use('ggplot')
+
+    region = "{chrom}_{start}_{end}".format(**res)
+    if png_path.endswith('show'):
+        png = None
+    elif png_path.endswith(('.png', '.pdf')):
+        png = "%s.%s%s" % (png_path[:-4], region, png_path[-4:])
+    elif png_path:
+        png = "%s.%s.png" % (png_path.rstrip("."), region)
+
+    if is_numeric(getattr(covs, covariate)):
+        f = plot_continuous(covs, cluster_df, covariate, res['chrom'], res, png)
+    else:
+        f = plt.figure(figsize=(11, 4))
+        ax = f.add_subplot(1, 1, 1)
+        if 'spaghetti' in png_path:
+            plot_dmr(covs, cluster_df, covariate, res['chrom'], res, png)
+        else:
+            plot_hbar(covs, cluster_df, covariate, res['chrom'], res, png)
+        plt.title('p-value: %.3g %s: %.3f' % (res['p'], covariate, res['coef']))
+    f.set_tight_layout(True)
+    if png:
+        plt.savefig(png)
+    else:
+        plt.show()
 
 
 def main_example():
