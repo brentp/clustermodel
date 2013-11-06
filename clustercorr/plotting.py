@@ -1,10 +1,12 @@
 # from: http://nbviewer.ipython.org/urls/raw.github.com/EnricoGiampieri/dataplot/master/statplot.ipynb
+import matplotlib
+matplotlib.use('Agg')
 import numpy as np
 import pylab as plt
 from collections import OrderedDict
 
 def half_horizontal_bar(data, pos, left=False, dmin=0, dmax=1, **kwargs):
-    n_bins = 40
+    n_bins = 40 if len(data) > 15 else 20
     ax = kwargs.pop('ax', plt.gca())
     bins = np.linspace(dmin, dmax, n_bins + 1)
 
