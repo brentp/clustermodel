@@ -17,8 +17,6 @@ def is_numeric(pd_series):
 
 def run_model(cluster, covs, model, X, outlier_sds, liptak, bumping, gee_args,
         skat):
-    chrom = cluster[0].group
-
     # we turn the cluster list into a pandas dataframe with columns
     # of samples and rows of probes. these must match our covariates
     cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
