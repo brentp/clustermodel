@@ -241,3 +241,26 @@ fclust.lm = function(covs, formula, gee.corstr=NULL, ...){
     covs = read.csv(covs)
     return(clust.lm(covs, formula, gee.corstr=gee.corstr, ...))
 }
+
+fclust.lm.X(covs, formula, X, gee.corstr=NULL, ...){
+    library(data.table)
+    covs = read.csv(covs)
+    X = read.delim(X, row.names=1)
+    stopifnot(nrow(covs) %% ncol(X) == 0)
+    n_each = nrow(covs) / ncol(X)
+    names=rownames(X)
+
+    # get a + b + c from y ~ a + b + x
+    rhs = as.character(formula)[length(as.character(formula))]
+    irows = 1:nrow(X)
+
+    res = mclapply(irows, function(irow){
+        row = rep(X[irow,], each=n_each)
+        covs2 = covs # make a copy so we dont end up with huge covs
+        # add the expression column to the dataframe.
+        covs2[,names[i]] = row
+        formula = as.formula(paste(names[i], rhs, sep=" ~ "))
+        c(clust.lm(covs, formula, gee.corstr=gee.corstr, ...), names[i])
+    })
+    rbindlist(res)
+}
