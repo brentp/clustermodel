@@ -245,6 +245,7 @@ fclust.lm = function(covs, formula, gee.corstr=NULL, ...){
 fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, testing=FALSE){
     library(parallel)
     library(data.table)
+    formula = as.formula(formula)
 
     covs = read.csv(covs)
     X = read.delim(gzfile(X), row.names=1)
@@ -262,7 +263,7 @@ fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, test
     irows = 1:nrow(X)
     stopifnot(n_each > 1)
 
-    results = lapply(irows, function(irow){
+    results = mclapply(irows, function(irow){
         row = rep(t(X[irow,]), each=n_each)
         covs2 = covs # make a copy so we dont end up with huge covs
         # add the expression column to the dataframe.
@@ -276,14 +277,14 @@ fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, test
         #res.df[irow,1:4] = c(res[1], res[2], res[3], rnames[irow])
         if(!inherits(res, "try-error")){
             if(is.na(res[2])){ stop(res) }
-            return(list(covariate=res[1], pvalue=res[2], coef=res[3],
-                              X=rnames[irow], formula=sformula))
+            return(list(covariate=res[1], p=res[2], coef=res[3],
+                              X=rnames[irow], model=sformula))
         }else{
-            return(list(covariate="error", pvalue=NaN, coef=NaN, X=rnames[irow],
-                              formula=sformula))
+            return(list(covariate="error", p=NaN, coef=NaN, X=rnames[irow],
+                              model=sformula))
         }
 
-    })
+    }, mc.cores=mc.cores)
     results = rbindlist(results)
     rownames(results) = results$X
     results
@@ -298,22 +299,22 @@ test_X = function(){
     cprint("\nmixed-effects model")
     formula = methylation ~ disease + (1|id) + (1|CpG)
     df = fclust.lm.X(covs, formula, X, testing=TRUE)
-    print(head(df[order(as.numeric(df$pvalue)),], n=5))
+    print(head(df[order(as.numeric(df$p)),], n=5))
 
     cprint("\nGEE")
     formula = methylation ~ disease #+ (1|id) + (1|CpG)
     df = fclust.lm.X(covs, formula, X, testing=TRUE, gee.corstr="ar", gee.clustervar="id")
-    print(head(df[order(as.numeric(df$pvalue)),], n=5))
+    print(head(df[order(as.numeric(df$p)),], n=5))
 
     cprint("\nbumping")
     formula = methylation ~ disease #+ (1|id) + (1|CpG)
     df = fclust.lm.X(covs, formula, X, testing=TRUE, bumping=TRUE)
-    print(head(df[order(as.numeric(df$pvalue)),], n=5))
+    print(head(df[order(as.numeric(df$p)),], n=5))
 
     cprint("\nliptak")
     formula = methylation ~ disease #+ (1|id) + (1|CpG)
     df = fclust.lm.X(covs, formula, X, testing=TRUE, bumping=TRUE)
-    print(head(df[order(as.numeric(df$pvalue)),], n=5))
+    print(head(df[order(as.numeric(df$p)),], n=5))
     # show that we get the same result (about with the linear model)
     # pvalue is  2.85844757130782e-06 for the clustered approach and
     # 7.88e-07 for looking at a single probe with a linear model in

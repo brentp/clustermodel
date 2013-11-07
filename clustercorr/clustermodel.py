@@ -8,21 +8,38 @@ import tempfile
 r = R(max_len=5e7, return_err=False)
 r('source("%s/mods.R")' % os.path.dirname(__file__))
 
-def rcall(covs, model, kwargs=None):
+def rcall(covs, model, X=None, kwargs=None):
     """
     internal function to call R and return the result
     """
+    r_func = 'fclust.lm.X' if X else 'fclust.lm'
     if kwargs is None: kwargs = {}
-    kwargs_str = ", ".join("%s='%s'" % (k, v) for k, v in kwargs.iteritems())
-    r("a <- c('nan', 'nan', 'nan'); a <- fclust.lm('%s', '%s', %s)" % (covs, model, kwargs_str))
-    vals = r['a']
-    ret = dict(covariate=vals[0], p=float(vals[1]), model=model)
-    if len(vals) > 2:
-        ret['coef'] = float(vals[2])
-    ret.update(kwargs)
-    return ret
+    if X is None:
+        kwargs_str = ", ".join("%s='%s'" % (k, v)
+                                for k, v in kwargs.iteritems())
+        r("a <- c('nan', 'nan', 'nan'); a <- fclust.lm('%s', '%s', %s)"
+                % (covs, model, kwargs_str))
+        vals = r['a']
+        ret = dict(covariate=vals[0], p=float(vals[1]), model=model)
+        if len(vals) > 2:
+            ret['coef'] = float(vals[2])
+        ret.update(kwargs)
+        return ret
+    else:
+        if False:
+            "fclust.lm.X('%s', '%s', '%s', %s)" % (covs, model, X, kwargs_str)
+            import shutil ;shutil.copyfile(covs, "/tmp/ttt.csv")
+        import multiprocessing
+        mc_cores = multiprocessing.cpu_count()
+        kwargs['mc.cores'] = mc_cores - 1
+        kwargs_str = ", ".join("%s='%s'" % (k, v)
+                                for k, v in kwargs.iteritems())
+        r("a <- NA; a <- fclust.lm.X('%s', '%s', '%s', %s)"
+                % (covs, model, X, kwargs_str))
+        df = r['a']
+        return df
 
-def clustered_model(cov_df, cluster_df, model, gee_args=(), liptak=False,
+def clustered_model(cov_df, cluster_df, model, X=None, gee_args=(), liptak=False,
         bumping=False, skat=False, outlier_sds=None):
     """
     Given a cluster of (presumably) correlated CpG's. There are a number of
@@ -65,6 +82,10 @@ def clustered_model(cov_df, cluster_df, model, gee_args=(), liptak=False,
                 The p-value returned will always be for the first covariate
                 in the model. See module docstring for examples.
 
+        X - a file with the same samples as cov_df and rows of expression
+            data. If present, each DMR will be tested against each row in
+            this file--this is computationally intensive!!
+
         gee_args - a 2-tuple of arguments to R's geepack::geeglm().
                    1) the corstr (one of "ex", "in", "ar")
                    2) the cluster variable. This will likely be "id" if
@@ -87,7 +108,7 @@ def clustered_model(cov_df, cluster_df, model, gee_args=(), liptak=False,
     """
 
     with cov_cluster_setup(cov_df, cluster_df, outlier_sds) as fh:
-        return clustered_model_frame(fh.name, model, gee_args, liptak, bumping,
+        return clustered_model_frame(fh.name, model, X, gee_args, liptak, bumping,
                                    skat)
 
 def set_outlier_nan(cluster_df, n_sds):
@@ -157,7 +178,7 @@ def cov_cluster_setup(cov_df, cluster_df, outlier_sds=None):
     fh.flush()
     return fh
 
-def clustered_model_frame(fname_df, model, gee_args=(), liptak=False,
+def clustered_model_frame(fname_df, model, X=None, gee_args=(), liptak=False,
         bumping=False, skat=False):
     """
     the arguments to this function are identical to clustered_model()
@@ -168,18 +189,18 @@ def clustered_model_frame(fname_df, model, gee_args=(), liptak=False,
 
     if "|" in model:
         assert not any((skat, liptak, bumping, gee_args))
-        return rcall(fname_df, model)
+        return rcall(fname_df, model, X)
 
     if skat:
-        return rcall(fname_df, model, dict(skat=True))
+        return rcall(fname_df, model, X, dict(skat=True))
     elif liptak:
-        return rcall(fname_df, model, dict(liptak=True))
+        return rcall(fname_df, model, X, dict(liptak=True))
     elif bumping:
-        return rcall(fname_df, model, dict(bumping=True))
+        return rcall(fname_df, model, X, dict(bumping=True))
     elif gee_args:
         corr, cov = gee_args
         assert corr[:2] in ('ex', 'ar', 'in')
-        return rcall(fname_df, model, {"gee.corstr": corr, "gee.clustervar": cov})
+        return rcall(fname_df, model, X, {"gee.corstr": corr, "gee.clustervar": cov})
     else:
         raise Exception('must specify one of skat/liptak/bumping/gee_args'
                         ' or specify a mixed-effect model in lme4 syntax')

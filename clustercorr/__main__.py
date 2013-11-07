@@ -12,7 +12,7 @@ def is_numeric(pd_series):
         return len(pd_series.unique()) > 2
     return False
 
-def run_model(cluster, covs, model, outlier_sds, liptak, bumping, gee_args,
+def run_model(cluster, covs, model, X, outlier_sds, liptak, bumping, gee_args,
         skat):
     chrom = cluster[0].group
 
@@ -21,7 +21,7 @@ def run_model(cluster, covs, model, outlier_sds, liptak, bumping, gee_args,
     cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
 
         # now we want to test a model on our clustered dataset.
-    res = clustered_model(covs, cluster_df, model, gee_args=gee_args,
+    res = clustered_model(covs, cluster_df, model, X=X, gee_args=gee_args,
                 liptak=liptak, bumping=bumping, skat=skat,
                 outlier_sds=outlier_sds)
     res['chrom'] = cluster[0].group
@@ -32,7 +32,7 @@ def run_model(cluster, covs, model, outlier_sds, liptak, bumping, gee_args,
 
 def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
         rho_min=0.3, min_clust_size=2, sep="\t",
-        outlier_sds=None,
+        X=None, outlier_sds=None,
         liptak=False, bumping=False, gee_args=(), skat=False, png_path=None):
     # an iterable of feature objects
     feature_iter = feature_gen(fmeth, rho_min=rho_min)
@@ -46,8 +46,16 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
     covariate = model.split("~")[1].split("+")[0].strip()
 
     for cluster in cluster_gen:
-        res = run_model(cluster, covs, model, outlier_sds, liptak, bumping, gee_args,
+        res = run_model(cluster, covs, model, X, outlier_sds, liptak, bumping, gee_args,
                 skat)
+
+        if X:
+            # got a pandas dataframe
+            df = res
+            for i, row in df.iterrows():
+                yield dict(row)
+
+            continue
 
         if res['p'] < 1e-4 and png_path:
             cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
@@ -136,6 +144,13 @@ def main(args=sys.argv[1:]):
     p.add_argument('methylation', help="tab-delimited file of methylation"
                    " rows of this file must match the columns of `covs`"
                    " shape is n_probes * n_samples")
+
+    p.add_argument('--X', help='file with same sample columns as methylation, '
+            'rows of probes and values of some measurement (likely expression)'
+            ' this will perform a methyl-eQTL--for each DMR, it will test '
+            'againts all rows in this methylation array. As such, it is best'
+            ' to run this on subsets of data, e.g. only looking for cis '
+            'relationships')
     a = p.parse_args(args)
 
     if a.gee_args is not None:
@@ -160,6 +175,7 @@ def main(args=sys.argv[1:]):
                           bumping=a.bumping,
                           gee_args=a.gee_args,
                           skat=a.skat,
+                          X=a.X,
                           outlier_sds=a.outlier_sds,
                           png_path=a.png_path):
         c['method'] = method
