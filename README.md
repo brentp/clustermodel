@@ -177,6 +177,57 @@ So main points:
      a. first column must match first row from methylation file
 
 
+Methylation-eQTR
+================
+Methylation::expression Quantitative Trait Region. Generally, we perform a SNP-eQTL with
+a model like:
+
+    expression ~ genotype + age + gender ...
+
+To find how gene expression is affected by genotype. We are always interested
+in how methylation affects expression, but we often *lack power* to test each
+*single methylation* probe against many expression probes. This software
+enables testing the relation between expression and methylation in the context
+of a mixed-effects model (or GEE, or liptak, or bumphunting).
+The syntax looks like::
+
+    python -m clustercorr \
+           'methylation ~ disease + gender + (1|id) + (1|CpG)' \
+           clustercorr/tests/example-covariates.txt \
+           clustercorr/tests/example-methylation.txt.gz \
+           --X clustercorr/tests/example-expression.txt.gz \
+           --X-locs clustercorr/tests/example-expression-probe-locs.bed.gz \
+           --X-dist 150000
+
+where the first 3 arguments are as before: the model, the covariates, and the
+methylation data.  The last 3 arguments are the expression info. The first
+is the expression matrix with samples that match the covariates and the
+methylation matrix. --X-locs is a BED file giving the location of each probe
+and --X-dist gives the maximum distance between a methylation and expression
+probe to be tested.  --X-locs and --X-dist are optional, but performing all
+expression::methylation comparisons is likely going to take a long time,
+despite the automatic parallelization.
+
+The first few lines of output should look like::
+
+    #chrom	start	end	coef	p	n_probes	model	method	Xstart	Xend	Xstrand	distance
+    chr1	2043438	2043450	-0.05407	0.6498	2	methylation ~ A_24_P49214 + disease + gender + (1 | id) + (1 | CpG)	mixed-model	2116522	2116463	-	73072
+    chr1	2043438	2043450	-0.01590	0.7547	2	methylation ~ A_33_P3410123 + disease + gender + (1 | id) + (1 | CpG)	mixed-model	1920067	1920008	-	-123430
+    chr1	2043438	2043450	-0.01726	0.8491	2	methylation ~ A_23_P51187 + disease + gender + (1 | id) + (1 | CpG)	mixed-model	2116703	2116762	+	-73253
+    chr1	2043438	2043450	-0.12156	0.0962	2	methylation ~ A_33_P3359344 + disease + gender + (1 | id) + (1 | CpG)	mixed-model	2125138	2125079	-	81688
+    chr1	2043438	2043450	0.030371	0.3701	2	methylation ~ A_33_P3410121 + disease + gender + (1 | id) + (1 | CpG)	mixed-model	1915812	1915753	-	-127685
+    chr1	2043438	2043450	-0.04481	0.2563	2	methylation ~ A_33_P3359354 + disease + gender + (1 | id) + (1 | CpG)	mixed-model	2116762	2116703	-	73312
+    chr1	2043760	2043853	-0.05612	0.8589	3	methylation ~ A_24_P49214 + disease + gender + (1 | id) + (1 | CpG)	mixed-model	2116522	2116463	-	72669
+    chr1	2043760	2043853	0.064542	0.6318	3	methylation ~ A_33_P3410123 + disease + gender + (1 | id) + (1 | CpG)	mixed-model	1920067	1920008	-	-123752
+    chr1	2043760	2043853	0.201022	0.4006	3	methylation ~ A_23_P51187 + disease + gender + (1 | id) + (1 | CpG)	mixed-model	2116703	2116762	+	-72850
+    
+
+Note that each probe is automatically inserted into the model. The distance
+column is negative if the methylation region is upstream of the expression
+probe and positive otherwise. 
+
+See the example data in `clustercorr/tests/` for how to set up your own data.
+
 Generating Correlated Data
 ==========================
 

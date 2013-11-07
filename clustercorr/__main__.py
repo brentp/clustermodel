@@ -1,10 +1,13 @@
 import sys
+import tempfile
+import gzip
 import numpy as np
 import pandas as pd
 from aclust import aclust
 from .plotting import plot_dmr, plot_hbar, plot_continuous
 from clustercorr import feature_gen, cluster_to_dataframe, clustered_model
 
+xopen = lambda f: gzip.open(f) if f.endswith('.gz') else open(f)
 
 def is_numeric(pd_series):
     if np.issubdtype(pd_series.dtype, int) or \
@@ -30,9 +33,28 @@ def run_model(cluster, covs, model, X, outlier_sds, liptak, bumping, gee_args,
     res['n_probes'] = len(cluster)
     return res
 
+def distX(dmr, expr):
+    strand = "-" if expr.strand == "-" else "+"
+    dmr['distance'] = 0
+    if dmr['end'] < expr.start:
+        dmr['distance'] = expr.start - dmr['end']
+        # dmr is left of gene. that means it is upstream if strand is +
+        # we use "-" for upstream
+        if strand == "+":
+            dmr['distance'] *= -1
+
+    elif dmr['start'] > expr.end:
+        dmr['distance'] = dmr['start'] - expr.end
+        # dmr is right of gene. that is upstream if strand is -
+        # use - for upstream
+        if strand == "-":
+            dmr['distance'] *= -1
+    dmr['Xstart'], dmr['Xend'], dmr['Xstrand'] = expr.start, expr.end, expr.strand
+
 def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
         rho_min=0.3, min_clust_size=2, sep="\t",
-        X=None, outlier_sds=None,
+        X=None, X_locs=None, X_dist=None,
+        outlier_sds=None,
         liptak=False, bumping=False, gee_args=(), skat=False, png_path=None):
     # an iterable of feature objects
     feature_iter = feature_gen(fmeth, rho_min=rho_min)
@@ -44,16 +66,44 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
 
     covs = pd.read_table(fcovs, index_col=0, sep=sep)
     covariate = model.split("~")[1].split("+")[0].strip()
+    X_file = X
+
+    if not X_locs is None: # read expression into memory and pull out subsets as needed.
+        X_locs = pd.read_table(xopen(X_locs), index_col="probe")
+        X = pd.read_table(xopen(X), index_col=0)
+        X_probes = set(X.index)
 
     for cluster in cluster_gen:
-        res = run_model(cluster, covs, model, X, outlier_sds, liptak, bumping, gee_args,
+
+        if not X_locs is None:
+            fh = tempfile.NamedTemporaryFile(delete=True)
+            chrom = cluster[0].group
+            start, end = cluster[0].start, cluster[-1].end
+            probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
+                             (X_locs.ix[:, 1] < end + X_dist) &
+                             (X_locs.ix[:, 2] > start - X_dist))]
+            probes = [p for p in probe_locs.index if p in X_probes]
+            if len(probes) == 0: continue
+            subset = X.ix[probes, :]
+            subset.to_csv(fh.name, sep="\t", index=True, index_label="probe",
+                            float_format="%.4f")
+            fh.flush()
+            X_file = fh.name
+
+        res = run_model(cluster, covs, model, X_file, outlier_sds, liptak, bumping, gee_args,
                 skat)
 
-        if X:
+
+        if not X is None:
+            if not X_locs is None:
+                fh.close()
             # got a pandas dataframe
             df = res
             for i, row in df.iterrows():
-                yield dict(row)
+                row = dict(row)
+                if not X_locs is None:
+                    distX(row, probe_locs.ix[row['X'], :])
+                yield row
 
             continue
 
@@ -145,12 +195,19 @@ def main(args=sys.argv[1:]):
                    " rows of this file must match the columns of `covs`"
                    " shape is n_probes * n_samples")
 
-    p.add_argument('--X', help='file with same sample columns as methylation, '
+    ep = p.add_argument_group('optional expression parameters')
+    ep.add_argument('--X', help='file with same sample columns as methylation, '
             'rows of probes and values of some measurement (likely expression)'
             ' this will perform a methyl-eQTL--for each DMR, it will test '
             'againts all rows in this methylation array. As such, it is best'
             ' to run this on subsets of data, e.g. only looking for cis '
             'relationships')
+    ep.add_argument('--X-locs', help="BED file with locations of probes from"
+            " the first column in --X. Should have a 'probe' column header")
+    ep.add_argument('--X-dist', type=int, help="only look at cis interactions"
+            " between X and methylation sites with this as the maximum",
+            default=100000)
+
     a = p.parse_args(args)
 
     if a.gee_args is not None:
@@ -165,6 +222,8 @@ def main(args=sys.argv[1:]):
             method = "mixed-model"
 
     fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{method}"
+    if a.X_locs:
+        fmt += "\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
     print "#" + fmt.replace("}", "").replace("{", "")
     for c in clustermodel(a.covs, a.methylation, a.model,
                           max_dist=a.max_dist,
@@ -176,6 +235,8 @@ def main(args=sys.argv[1:]):
                           gee_args=a.gee_args,
                           skat=a.skat,
                           X=a.X,
+                          X_locs=a.X_locs,
+                          X_dist=a.X_dist,
                           outlier_sds=a.outlier_sds,
                           png_path=a.png_path):
         c['method'] = method
