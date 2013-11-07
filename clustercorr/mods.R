@@ -242,9 +242,15 @@ fclust.lm = function(covs, formula, gee.corstr=NULL, ...){
     return(clust.lm(covs, formula, gee.corstr=gee.corstr, ...))
 }
 
-fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ...){
+fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, testing=FALSE){
+    library(parallel)
+    library(data.table)
+
     covs = read.csv(covs)
-    X = read.delim(X, row.names=1)
+    X = read.delim(gzfile(X), row.names=1)
+
+    if(testing) X = X[400:408,]
+
     stopifnot(nrow(covs) %% ncol(X) == 0)
     n_each = nrow(covs) / ncol(X)
     rownames(X) = as.character(rownames(X))
@@ -252,20 +258,64 @@ fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ...){
 
     # get a + b + c from y ~ a + b + x
     rhs = as.character(formula)[length(as.character(formula))]
+    lhs = as.character(formula)[2]
     irows = 1:nrow(X)
-    res.df = data.frame(covariate=character(), pvalue=numeric(), coef=numeric(), X=character(), 
-                     stringsAsFactors=FALSE)
-    res.df[irows, "X"] = rnames[irows]
+    stopifnot(n_each > 1)
 
-    mclapply(irows, function(irow){
-        row = rep(X[irow,], each=n_each)
+    results = lapply(irows, function(irow){
+        row = rep(t(X[irow,]), each=n_each)
         covs2 = covs # make a copy so we dont end up with huge covs
         # add the expression column to the dataframe.
-        covs2[,rnames[i]] = row
-        formula = as.formula(paste(rnames[irow], rhs, sep=" ~ "))
-        res = clust.lm(covs2, formula, gee.corstr=gee.corstr, ...)
-        res.df[irow,] = c(res, rnames[irow])
-        TRUE
+        covs2[,rnames[irow]] = row
+        sformula = sprintf("%s ~ %s + %s", lhs, rnames[irow], rhs)
+        # this doesnt work!!
+        #sformula = sprintf("%s ~ %s + %s", rnames[irow], lhs, rhs)
+        res = try(clust.lm(covs2, as.formula(sformula),
+                           gee.corstr=gee.corstr, ...), silent=FALSE)
+
+        #res.df[irow,1:4] = c(res[1], res[2], res[3], rnames[irow])
+        if(!inherits(res, "try-error")){
+            if(is.na(res[2])){ stop(res) }
+            return(list(covariate=res[1], pvalue=res[2], coef=res[3],
+                              X=rnames[irow], formula=sformula))
+        }else{
+            return(list(covariate="error", pvalue=NaN, coef=NaN, X=rnames[irow],
+                              formula=sformula))
+        }
+
     })
-    res.df
+    results = rbindlist(results)
+    rownames(results) = results$X
+    results
 }
+
+test_X = function(){
+    covs = "clustercorr/tests/example-long.csv"
+    X = 'clustercorr/tests/example-expression.txt.gz'
+
+    print("mixed-effects model")
+    formula = methylation ~ disease + (1|id) + (1|CpG)
+    df = fclust.lm.X(covs, formula, X, testing=TRUE)
+    print(head(df[order(as.numeric(df$pvalue)),], n=5))
+
+    print("GEE")
+    formula = methylation ~ disease #+ (1|id) + (1|CpG)
+    df = fclust.lm.X(covs, formula, X, testing=TRUE, gee.corstr="ar", gee.clustervar="id")
+    print(head(df[order(as.numeric(df$pvalue)),], n=5))
+
+    # show that we get the same result (about with the linear model)
+    # pvalue is  2.85844757130782e-06 for the clustered approach and
+    # 7.88e-07 for looking at a single probe with a linear model in
+    # the region. coefficients vary by ~ 0.001.
+    probe = "A_33_P3403576"
+    X = read.delim(gzfile(X), row.names=1, nrows=408)
+    covs = read.csv(covs)
+    covs = covs[covs$CpG == covs$CpG[1],]
+    covs$X = t(X[probe,])
+
+    print(probe)
+    print(summary(lm(methylation ~ X + disease, covs))$coefficients)
+    print(summary(lm(X ~ methylation + disease, covs))$coefficients)
+
+}
+#test_X()
