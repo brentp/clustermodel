@@ -242,7 +242,7 @@ fclust.lm = function(covs, formula, gee.corstr=NULL, ...){
     return(clust.lm(covs, formula, gee.corstr=gee.corstr, ...))
 }
 
-fclust.lm.X(covs, formula, X, gee.corstr=NULL, ...){
+fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ...){
     covs = read.csv(covs)
     X = read.delim(X, row.names=1)
     stopifnot(nrow(covs) %% ncol(X) == 0)
