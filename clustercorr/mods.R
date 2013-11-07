@@ -289,20 +289,31 @@ fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, test
     results
 }
 
+cprint = function(...) write(..., stdout())
+
 test_X = function(){
     covs = "clustercorr/tests/example-long.csv"
     X = 'clustercorr/tests/example-expression.txt.gz'
 
-    print("mixed-effects model")
+    cprint("\nmixed-effects model")
     formula = methylation ~ disease + (1|id) + (1|CpG)
     df = fclust.lm.X(covs, formula, X, testing=TRUE)
     print(head(df[order(as.numeric(df$pvalue)),], n=5))
 
-    print("GEE")
+    cprint("\nGEE")
     formula = methylation ~ disease #+ (1|id) + (1|CpG)
     df = fclust.lm.X(covs, formula, X, testing=TRUE, gee.corstr="ar", gee.clustervar="id")
     print(head(df[order(as.numeric(df$pvalue)),], n=5))
 
+    cprint("\nbumping")
+    formula = methylation ~ disease #+ (1|id) + (1|CpG)
+    df = fclust.lm.X(covs, formula, X, testing=TRUE, bumping=TRUE)
+    print(head(df[order(as.numeric(df$pvalue)),], n=5))
+
+    cprint("\nliptak")
+    formula = methylation ~ disease #+ (1|id) + (1|CpG)
+    df = fclust.lm.X(covs, formula, X, testing=TRUE, bumping=TRUE)
+    print(head(df[order(as.numeric(df$pvalue)),], n=5))
     # show that we get the same result (about with the linear model)
     # pvalue is  2.85844757130782e-06 for the clustered approach and
     # 7.88e-07 for looking at a single probe with a linear model in
@@ -313,9 +324,9 @@ test_X = function(){
     covs = covs[covs$CpG == covs$CpG[1],]
     covs$X = t(X[probe,])
 
-    print(probe)
+    cprint(paste0("\n", probe))
     print(summary(lm(methylation ~ X + disease, covs))$coefficients)
     print(summary(lm(X ~ methylation + disease, covs))$coefficients)
 
 }
-#test_X()
+# test_X()
