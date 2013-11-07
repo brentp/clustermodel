@@ -243,24 +243,29 @@ fclust.lm = function(covs, formula, gee.corstr=NULL, ...){
 }
 
 fclust.lm.X(covs, formula, X, gee.corstr=NULL, ...){
-    library(data.table)
     covs = read.csv(covs)
     X = read.delim(X, row.names=1)
     stopifnot(nrow(covs) %% ncol(X) == 0)
     n_each = nrow(covs) / ncol(X)
-    names=rownames(X)
+    rownames(X) = as.character(rownames(X))
+    rnames = rownames(X)
 
     # get a + b + c from y ~ a + b + x
     rhs = as.character(formula)[length(as.character(formula))]
     irows = 1:nrow(X)
+    res.df = data.frame(covariate=character(), pvalue=numeric(), coef=numeric(), X=character(), 
+                     stringsAsFactors=FALSE)
+    res.df[irows, "X"] = rnames[irows]
 
-    res = mclapply(irows, function(irow){
+    mclapply(irows, function(irow){
         row = rep(X[irow,], each=n_each)
         covs2 = covs # make a copy so we dont end up with huge covs
         # add the expression column to the dataframe.
-        covs2[,names[i]] = row
-        formula = as.formula(paste(names[i], rhs, sep=" ~ "))
-        c(clust.lm(covs, formula, gee.corstr=gee.corstr, ...), names[i])
+        covs2[,rnames[i]] = row
+        formula = as.formula(paste(rnames[irow], rhs, sep=" ~ "))
+        res = clust.lm(covs2, formula, gee.corstr=gee.corstr, ...)
+        res.df[irow,] = c(res, rnames[irow])
+        TRUE
     })
-    rbindlist(res)
+    res.df
 }
