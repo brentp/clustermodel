@@ -149,9 +149,7 @@ def main_example():
         if cluster_p['p'] < 1e-5:
             print cluster_p
 
-def main(args=sys.argv[1:]):
-    import argparse
-    p = argparse.ArgumentParser(__doc__)
+def add_modelling_args(p):
     mp = p.add_argument_group('modeling choices (choose one or specify a '
             'mixed-model using lme4 syntax)')
     group = mp.add_mutually_exclusive_group()
@@ -162,29 +160,6 @@ def main(args=sys.argv[1:]):
     group.add_argument('--liptak', action="store_true")
     group.add_argument('--bumping', action="store_true")
 
-
-    cp = p.add_argument_group('clustering parameters')
-    cp.add_argument('--rho-min', type=float, default=0.3,
-                   help="minimum correlation to merge 2 probes")
-    cp.add_argument('--min-cluster-size', type=int, default=2,
-                    help="minimum cluster size on which to run model: "
-                   "must be at least 2")
-    cp.add_argument('--linkage', choices=['single', 'complete'],
-                    default='complete', help="linkage method")
-
-    cp.add_argument('--max-dist', default=500, type=int,
-                    help="maximum distance beyond which a probe can not be"
-                    " added to a cluster")
-    p.add_argument('--png-path',
-                   help="path to save a png of regions with low p-values. If "
-                   "this ends with 'show', each plot will be shown in a window"
-                   " if this contains the string 'spaghetti', it will draw a "
-                   "a spaghetti plot, otherwise, it's a histogram plot")
-    p.add_argument('--outlier-sds', type=float, default=30,
-            help="remove points that are more than this many standard "
-                 "deviations away from the mean (only usable with GEEs"
-                 " and mixed-models which allow missing data")
-
     p.add_argument('model',
                    help="model in R syntax, e.g. 'methylation ~ disease'")
     p.add_argument('covs', help="tab-delimited file of covariates: shape is "
@@ -193,6 +168,7 @@ def main(args=sys.argv[1:]):
                    " rows of this file must match the columns of `covs`"
                    " shape is n_probes * n_samples")
 
+def add_expression_args(p):
     ep = p.add_argument_group('optional expression parameters')
     ep.add_argument('--X', help='file with same sample columns as methylation, '
             'rows of probes and values of some measurement (likely expression)'
@@ -205,6 +181,38 @@ def main(args=sys.argv[1:]):
     ep.add_argument('--X-dist', type=int, help="only look at cis interactions"
             " between X and methylation sites with this as the maximum",
             default=100000)
+
+def add_clustering_args(p):
+    cp = p.add_argument_group('clustering parameters')
+    cp.add_argument('--rho-min', type=float, default=0.3,
+                   help="minimum correlation to merge 2 probes")
+    cp.add_argument('--min-cluster-size', type=int, default=2,
+                    help="minimum cluster size on which to run model: "
+                   "must be at least 2")
+    cp.add_argument('--linkage', choices=['single', 'complete'],
+                    default='complete', help="linkage method")
+
+    cp.add_argument('--max-dist', default=500, type=int,
+                    help="maximum distance beyond which a probe can not be"
+                    " added to a cluster")
+
+def main(args=sys.argv[1:]):
+    import argparse
+    p = argparse.ArgumentParser(__doc__)
+    add_modelling_args(p)
+    add_clustering_args(p)
+
+    p.add_argument('--png-path',
+                   help="path to save a png of regions with low p-values. If "
+                   "this ends with 'show', each plot will be shown in a window"
+                   " if this contains the string 'spaghetti', it will draw a "
+                   "a spaghetti plot, otherwise, it's a histogram plot")
+    p.add_argument('--outlier-sds', type=float, default=30,
+            help="remove points that are more than this many standard "
+                 "deviations away from the mean (only usable with GEEs"
+                 " and mixed-models which allow missing data")
+
+    add_expression_args(p)
 
     a = p.parse_args(args)
 
@@ -247,5 +255,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "simulate":
         from . import simulate
         sys.exit(simulate.main(sys.argv[2:]))
+    if len(sys.argv) > 1 and sys.argv[1] == "regional":
+        sys.exit(region.main(sys.argv[2:]))
 
     main()
