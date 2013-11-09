@@ -124,6 +124,26 @@ chr1    2066005 2066981 -0.0329768518519    0.0612285551598 6   methylation ~ di
 chr1    2081983 2082522 -0.0603722222222    0.149962950932  5   methylation ~ disease + (1|CpG) mixed-model
 ```
 
+Existing Regions
+================
+We may have a list of regions from one study to compare to another study. We
+can do this with the sub-command **regional** along with the --regions arg that
+gives a BED file of regions to test. In this case, the clustering is not performed
+(so clustering parameters are not used. Probes that fall into each region in the
+--regions argument will be assumed as a cluster and the linear model will be run.
+Here is an example call:
+
+    python -m clustercorr \
+        regional \
+        'methylation ~ disease + (1|CpG)' \
+        clustercorr/tests/example-covariates.txt \
+        clustercorr/tests/example-methylation.txt.gz \
+        --regions r.bed
+
+Note that the arguments are the same except for `regional` and the --regions
+argument giving the regions to test. This method can also work for 
+e*X*pression.
+
 Assumptions
 ===========
 

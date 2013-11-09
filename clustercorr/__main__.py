@@ -1,6 +1,7 @@
 import sys
 import tempfile
 import gzip
+from itertools import groupby
 import numpy as np
 import pandas as pd
 from aclust import aclust
@@ -32,22 +33,22 @@ def run_model(cluster, covs, model, X, outlier_sds, liptak, bumping, gee_args,
     return res
 
 def distX(dmr, expr):
-    strand = "-" if expr.strand == "-" else "+"
+    strand = "-" if expr['strand'] == "-" else "+"
     dmr['distance'] = 0
-    if dmr['end'] < expr.start:
-        dmr['distance'] = expr.start - dmr['end']
+    if dmr['end'] < expr['start']:
+        dmr['distance'] = expr['start'] - dmr['end']
         # dmr is left of gene. that means it is upstream if strand is +
         # we use "-" for upstream
         if strand == "+":
             dmr['distance'] *= -1
 
-    elif dmr['start'] > expr.end:
-        dmr['distance'] = dmr['start'] - expr.end
+    elif dmr['start'] > expr['end']:
+        dmr['distance'] = dmr['start'] - expr['end']
         # dmr is right of gene. that is upstream if strand is -
         # use - for upstream
         if strand == "-":
             dmr['distance'] *= -1
-    dmr['Xstart'], dmr['Xend'], dmr['Xstrand'] = expr.start, expr.end, expr.strand
+    dmr['Xstart'], dmr['Xend'], dmr['Xstrand'] = expr['start'], expr['end'], expr['strand']
 
 def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
         rho_min=0.3, min_clust_size=2, sep="\t",
@@ -61,6 +62,16 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
     cluster_gen = (c for c in aclust(feature_iter, max_dist=max_dist,
                                      max_skip=1, linkage=linkage)
                     if len(c) >= min_clust_size)
+    for res in clustermodelgen(fcovs, cluster_gen, model, sep=sep,
+            X=X, X_locs=X_locs, X_dist=X_dist, outlier_sds=outlier_sds,
+            liptak=liptak, bumping=bumping, gee_args=gee_args,
+            skat=False, png_path=None):
+        yield res
+
+
+def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
+        X=None, X_locs=None, X_dist=None, outlier_sds=None,
+        liptak=False, bumping=False, gee_args=(), skat=False, png_path=None):
 
     covs = pd.read_table(fcovs, index_col=0, sep=sep)
     covariate = model.split("~")[1].split("+")[0].strip()
@@ -100,7 +111,7 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
             for i, row in df.iterrows():
                 row = dict(row)
                 if not X_locs is None:
-                    distX(row, probe_locs.ix[row['X'], :])
+                    distX(row, dict(probe_locs.ix[row['X'], :]))
                 yield row
 
             continue
@@ -220,6 +231,30 @@ def get_method(a):
             method = "mixed-model"
     return method
 
+def gen_clusters_from_regions(feature_iter, regions):
+    header = xopen(regions).next().split("\t")
+    has_header = not (header[1].isdigit() and header[2].isdigit())
+    regions = pd.read_table(regions, header=0 if has_header else False)
+    regions.columns = 'chrom start end'.split() + list(regions.columns[3:])
+
+    regions['region'] = ['%s:%i-%i' % t for t in zip(regions['chrom'],
+                                                     regions['start'],
+                                                     regions['end'])]
+    def by_region(feat):
+        sub = regions[((regions['chrom'] == feat.group) &
+                (feat.start <= regions['end']) &
+                (feat.end >= regions['start']))]['region']
+        sub = list(sub)
+        if len(sub) == 0: return False
+        assert len(sub) == 1, (feat, "overlaps multiple regions")
+        return str(sub[0])
+
+    # TODO: send the region back to the caller as well
+    for region, cluster in groupby(feature_iter, by_region):
+        if not region: continue
+        yield list(cluster)
+
+
 def regional_main(args=sys.argv[1:]):
     import argparse
     p = argparse.ArgumentParser(__doc__)
@@ -233,9 +268,27 @@ def regional_main(args=sys.argv[1:]):
     a = p.parse_args(args)
     method = get_method(a)
 
+    feature_iter = feature_gen(a.methylation)
+    cluster_gen = gen_clusters_from_regions(feature_iter, a.regions)
+
     fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{method}"
     if a.X_locs:
         fmt += "\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
+    print "#" + fmt.replace("}", "").replace("{", "")
+
+
+    for c in clustermodelgen(a.covs, cluster_gen, a.model,
+                          X=a.X,
+                          X_locs=a.X_locs,
+                          X_dist=a.X_dist,
+                          outlier_sds=a.outlier_sds,
+                          liptak=a.liptak,
+                          bumping=a.bumping,
+                          gee_args=a.gee_args,
+                          skat=a.skat,
+                          png_path=a.png_path):
+        c['method'] = method
+        print fmt.format(**c)
 
 
 def main(args=sys.argv[1:]):
