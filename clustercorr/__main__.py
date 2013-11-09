@@ -196,12 +196,7 @@ def add_clustering_args(p):
                     help="maximum distance beyond which a probe can not be"
                     " added to a cluster")
 
-def main(args=sys.argv[1:]):
-    import argparse
-    p = argparse.ArgumentParser(__doc__)
-    add_modelling_args(p)
-    add_clustering_args(p)
-
+def add_misc_args(p):
     p.add_argument('--png-path',
                    help="path to save a png of regions with low p-values. If "
                    "this ends with 'show', each plot will be shown in a window"
@@ -212,10 +207,7 @@ def main(args=sys.argv[1:]):
                  "deviations away from the mean (only usable with GEEs"
                  " and mixed-models which allow missing data")
 
-    add_expression_args(p)
-
-    a = p.parse_args(args)
-
+def get_method(a):
     if a.gee_args is not None:
         method = 'gee:' + a.gee_args
         a.gee_args = a.gee_args.split(",")
@@ -226,6 +218,37 @@ def main(args=sys.argv[1:]):
         else:
             assert "|" in a.model
             method = "mixed-model"
+    return method
+
+def regional_main(args=sys.argv[1:]):
+    import argparse
+    p = argparse.ArgumentParser(__doc__)
+    add_modelling_args(p)
+    add_misc_args(p)
+    add_expression_args(p)
+
+    p.add_argument('--regions', required=True, help="BED file of regions to "
+            "test", metavar="BED")
+
+    a = p.parse_args(args)
+    method = get_method(a)
+
+    fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{method}"
+    if a.X_locs:
+        fmt += "\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
+
+
+def main(args=sys.argv[1:]):
+    import argparse
+    p = argparse.ArgumentParser(__doc__)
+
+    add_modelling_args(p)
+    add_clustering_args(p)
+    add_misc_args(p)
+    add_expression_args(p)
+
+    a = p.parse_args(args)
+    method = get_method(a)
 
     fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{method}"
     if a.X_locs:
@@ -255,7 +278,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "simulate":
         from . import simulate
         sys.exit(simulate.main(sys.argv[2:]))
+
+    # want to specify existing regions, not use found ones.
     if len(sys.argv) > 1 and sys.argv[1] == "regional":
-        sys.exit(region.main(sys.argv[2:]))
+        sys.exit(regional_main(sys.argv[2:]))
 
     main()
