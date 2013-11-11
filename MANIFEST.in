@@ -1,3 +1,4 @@
 include README.md
 include clustercorr/mods.R
 include clustercorr/tests/*.gz
+include LICENSE
