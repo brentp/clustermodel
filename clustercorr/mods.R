@@ -249,6 +249,7 @@ fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, test
 
     covs = read.csv(covs)
     X = read.delim(gzfile(X), row.names=1)
+    mc.cores = min(mc.cores, ncol(X))
 
     if(testing) X = X[400:408,]
 
