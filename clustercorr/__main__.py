@@ -89,8 +89,8 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             chrom = cluster[0].group
             start, end = cluster[0].start, cluster[-1].end
             probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
-                             (X_locs.ix[:, 1] < end + X_dist) &
-                             (X_locs.ix[:, 2] > start - X_dist))]
+                             (X_locs.ix[:, 1] < (end + X_dist)) &
+                             (X_locs.ix[:, 2] > (start - X_dist)))]
             probes = [p for p in probe_locs.index if p in X_probes]
             if len(probes) == 0: continue
             subset = X.ix[probes, :]
