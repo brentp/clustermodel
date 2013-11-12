@@ -54,7 +54,11 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
     ax.set_xticks(positions)
     ax.set_xlim(-0.5, max(positions) + 0.5)
     if chrom: chrom += ":"
-    ax.set_xticklabels(["%s%s" % (chrom, "{:,}".format(i)) for i in classes],
+    if isinstance(classes[0], int):
+        lbls = ["%s%s" % (chrom, "{:,}".format(i)) for i in classes]
+    else:
+        lbls = [str(s) for s in classes]
+    ax.set_xticklabels(lbls,
             rotation=15 if len(classes) > 8 else 0)
     return shape1, shape2
 
