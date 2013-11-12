@@ -1,5 +1,6 @@
 from nose.tools import assert_raises
 from clustercorr.clustermodel import clustered_model_frame, clustered_model
+from clustercorr.__main__ import fix_name
 import os.path as op
 import pandas as pd
 import tempfile
@@ -91,14 +92,15 @@ def test_clustered_model():
     r = clustered_model(covs, meth, model)
     yield check_clustered, r, model
 
-    with tempfile.NamedTemporaryFile(delete=True) as fh:
-        exp = meth.copy()
-        exp.index = ['gene' + l for l in 'ABCDE']
-        exp.to_csv(fh.name, sep="\t", quote=False, index=True,
-                index_label="probe")
-        fh.flush()
-        r = clustered_model(covs, meth, model, X=fh.name)
-        yield check_clustered_df, r, model, exp
+    exp = meth.copy()
+    for bad_name in ("", "-", " "):
+        with tempfile.NamedTemporaryFile(delete=True) as fh:
+            exp.index = ['gene' + bad_name + l for l in 'ABCDE']
+            exp.to_csv(fh.name, sep="\t", quote=False, index=True,
+                    index_label="probe")
+            fh.flush()
+            r = clustered_model(covs, meth, model, X=fh.name)
+            yield check_clustered_df, r, model, exp
 
 
 def check_clustered(r, model):
@@ -110,4 +112,4 @@ def check_clustered(r, model):
 
 def check_clustered_df(df, model, exp):
     for gene, (i, row) in zip(exp.index, df.iterrows()):
-        assert row['X'] == gene
+        assert row['X'] == fix_name(gene)

@@ -1,6 +1,7 @@
 import sys
 import tempfile
 import gzip
+import re
 from itertools import groupby
 import numpy as np
 import pandas as pd
@@ -68,6 +69,17 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
             skat=False, png_path=None):
         yield res
 
+def fix_name(name, patt=re.compile("-|:| ")):
+    """
+    >>> fix_name('asd f')
+    'asd.f'
+    >>> fix_name('asd-f')
+    'asd.f'
+    >>> fix_name('a:s:d-f')
+    'a.s.d.f'
+    """
+    return re.sub(patt, ".", name)
+
 
 def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         X=None, X_locs=None, X_dist=None, outlier_sds=None,
@@ -78,8 +90,11 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
     X_file = X
 
     if not X_locs is None: # read expression into memory and pull out subsets as needed.
+        # change names so R formulas are OK
         X_locs = pd.read_table(xopen(X_locs), index_col="probe")
+        X_locs.index = [fix_name(xi) for xi in X_locs.index]
         X = pd.read_table(xopen(X), index_col=0)
+        X.index = [fix_name(xi) for xi in X.index]
         X_probes = set(X.index)
 
     for cluster in cluster_gen:

@@ -255,7 +255,9 @@ fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, test
 
     stopifnot(nrow(covs) %% ncol(X) == 0)
     n_each = nrow(covs) / ncol(X)
-    rownames(X) = as.character(rownames(X))
+    # need this for when X_locs is not specified since we never readi
+    # in the array in python
+    rownames(X) = gsub("-|:| ", ".", as.character(rownames(X)))
     rnames = rownames(X)
 
     # get a + b + c from y ~ a + b + x
