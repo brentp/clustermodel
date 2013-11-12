@@ -3,7 +3,7 @@ import sys
 import warnings
 import numpy as np
 import pandas as pd
-from pyper import R
+from .pyper import R
 import tempfile
 r = R(max_len=5e7, return_err=False)
 r('source("%s/mods.R")' % os.path.dirname(__file__))
