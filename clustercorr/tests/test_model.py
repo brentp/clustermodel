@@ -1,6 +1,8 @@
 from nose.tools import assert_raises
-from clustercorr.clustermodel import clustered_model_frame
+from clustercorr.clustermodel import clustered_model_frame, clustered_model
 import os.path as op
+import pandas as pd
+import tempfile
 
 HERE = op.dirname(__file__)
 
@@ -21,8 +23,6 @@ def test_model_frame():
                 "methylation ~ disease + " + random_effects, {})
 
 def test_model_frame_X():
-    import pandas as pd
-    import tempfile
 
     fname = op.join(HERE, "example-long.csv")
     X = op.join(HERE, "example-expression.txt.gz")
@@ -72,3 +72,42 @@ def check_clustered_model_frame(fname, model, kwargs):
         assert not 'bumping' in res, res
 
 
+def test_clustered_model():
+
+    # test for 20 samples and 5 CpGs
+    import numpy as np
+
+    covs = pd.DataFrame({'age': range(1, 21), 'sex': ['M'] * 10 + ['F'] * 10,
+        'disease': [True] * 5 + [False] * 5 + [True] * 5 + [False] * 5})
+    covs.index = ['sample_%i' % i for i in range(1, 21)]
+
+    meth = pd.DataFrame(np.random.randn(5, 20), index = ["chr1:%i" % (100 * i)
+        for i in range(1, 6)])
+    meth.columns = list(covs.index)
+
+
+    model = "methylation ~ disease + age + (1|id)"
+
+    r = clustered_model(covs, meth, model)
+    yield check_clustered, r, model
+
+    with tempfile.NamedTemporaryFile(delete=True) as fh:
+        exp = meth.copy()
+        exp.index = ['gene' + l for l in 'ABCDE']
+        exp.to_csv(fh.name, sep="\t", quote=False, index=True,
+                index_label="probe")
+        fh.flush()
+        r = clustered_model(covs, meth, model, X=fh.name)
+        yield check_clustered_df, r, model, exp
+
+
+def check_clustered(r, model):
+    assert 'p' in r
+    assert 'coef' in r
+    assert isinstance(r['coef'], float)
+    assert r['model'] == model
+
+
+def check_clustered_df(df, model, exp):
+    for gene, (i, row) in zip(exp.index, df.iterrows()):
+        assert row['X'] == gene
