@@ -12,7 +12,6 @@ def rcall(covs, model, X=None, kwargs=None):
     """
     internal function to call R and return the result
     """
-    r_func = 'fclust.lm.X' if X else 'fclust.lm'
     if kwargs is None: kwargs = {}
     if X is None:
         kwargs_str = ", ".join("%s='%s'" % (k, v)
