@@ -348,7 +348,7 @@ if __name__ == "__main__":
         sys.exit(simulate.main(sys.argv[2:]))
 
     # want to specify existing regions, not use found ones.
-    if len(sys.argv) > 1 and sys.argv[1] == "regional":
-        sys.exit(regional_main(sys.argv[2:]))
+    if len(sys.argv) > 1 and "--regions" in sys.argv[1:]:
+        sys.exit(regional_main(sys.argv[1:]))
 
     main()
