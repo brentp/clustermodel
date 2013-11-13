@@ -1,6 +1,6 @@
 #
-import signal
-signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+#import signal
+#signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 __version__ = "0.1"
 from . import simulate

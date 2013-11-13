@@ -1,17 +1,24 @@
 import os
-import sys
 import warnings
+import tempfile
+#import signal
 import numpy as np
 import pandas as pd
 from .pyper import R
-import tempfile
-r = R(max_len=5e7, return_err=False)
-r('source("%s/mods.R")' % os.path.dirname(__file__))
 
-def rcall(covs, model, X=None, kwargs=None):
+rinstances = []
+for i in range(5):
+    r = R(max_len=5e7, return_err=False)
+    r('source("%s/mods.R")' % os.path.dirname(__file__))
+    rinstances.append(r)
+
+def rcall(covs, model, X=None, kwargs=None, r=rinstances[0]):
     """
     internal function to call R and return the result
     """
+    if isinstance(r, int):
+        r = rinstances[r]
+    r = r or rinstances[0]
     if kwargs is None: kwargs = {}
     if X is None:
         kwargs_str = ", ".join("%s='%s'" % (k, v)
@@ -39,7 +46,7 @@ def rcall(covs, model, X=None, kwargs=None):
         return df
 
 def clustered_model(cov_df, cluster_df, model, X=None, gee_args=(), liptak=False,
-        bumping=False, skat=False, outlier_sds=None):
+        bumping=False, skat=False, outlier_sds=None, r=None):
     """
     Given a cluster of (presumably) correlated CpG's. There are a number of
     methods one could employ to determine the association of the methylation
@@ -108,7 +115,7 @@ def clustered_model(cov_df, cluster_df, model, X=None, gee_args=(), liptak=False
 
     with cov_cluster_setup(cov_df, cluster_df, outlier_sds) as fh:
         return clustered_model_frame(fh.name, model, X, gee_args, liptak, bumping,
-                                   skat)
+                                   skat, r)
 
 def set_outlier_nan(cluster_df, n_sds):
     """
@@ -178,7 +185,7 @@ def cov_cluster_setup(cov_df, cluster_df, outlier_sds=None):
     return fh
 
 def clustered_model_frame(fname_df, model, X=None, gee_args=(), liptak=False,
-        bumping=False, skat=False):
+        bumping=False, skat=False, r=None):
     """
     the arguments to this function are identical to clustered_model()
     except that fname_df is the file-name of a dataframe.to_csv()
@@ -188,18 +195,19 @@ def clustered_model_frame(fname_df, model, X=None, gee_args=(), liptak=False,
 
     if "|" in model:
         assert not any((skat, liptak, bumping, gee_args))
-        return rcall(fname_df, model, X)
+        return rcall(fname_df, model, X, r=r)
 
     if skat:
-        return rcall(fname_df, model, X, dict(skat=True))
+        return rcall(fname_df, model, X, dict(skat=True), r=r)
     elif liptak:
-        return rcall(fname_df, model, X, dict(liptak=True))
+        return rcall(fname_df, model, X, dict(liptak=True), r=r)
     elif bumping:
-        return rcall(fname_df, model, X, dict(bumping=True))
+        return rcall(fname_df, model, X, dict(bumping=True), r=r)
     elif gee_args:
         corr, cov = gee_args
-        assert corr[:2] in ('ex', 'ar', 'in')
-        return rcall(fname_df, model, X, {"gee.corstr": corr, "gee.clustervar": cov})
+        assert corr[:2] in ('ex', 'ar', 'in', 'un')
+        return rcall(fname_df, model, X, {"gee.corstr": corr, "gee.clustervar":
+            cov}, r=r)
     else:
         raise Exception('must specify one of skat/liptak/bumping/gee_args'
                         ' or specify a mixed-effect model in lme4 syntax')

@@ -17,16 +17,16 @@ def is_numeric(pd_series):
         return len(pd_series.unique()) > 2
     return False
 
-def run_model(cluster, covs, model, X, outlier_sds, liptak, bumping, gee_args,
-        skat):
+def run_model(args):
+    (cluster, covs, model, X, outlier_sds, liptak, bumping, gee_args,
+        skat, i) = args
     # we turn the cluster list into a pandas dataframe with columns
     # of samples and rows of probes. these must match our covariates
     cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
-
         # now we want to test a model on our clustered dataset.
     res = clustered_model(covs, cluster_df, model, X=X, gee_args=gee_args,
                 liptak=liptak, bumping=bumping, skat=skat,
-                outlier_sds=outlier_sds)
+                outlier_sds=outlier_sds, r=i)
     res['chrom'] = cluster[0].group
     res['start'] = cluster[0].start
     res['end'] = cluster[-1].end
@@ -81,6 +81,28 @@ def fix_name(name, patt=re.compile("-|:| ")):
     return re.sub(patt, ".", name)
 
 
+def take_subset(cluster, X_locs, X_dist, X_probes):
+    fh = tempfile.NamedTemporaryFile(delete=True)
+    chrom = cluster[0].group
+    start, end = cluster[0].start, cluster[-1].end
+    probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
+                     (X_locs.ix[:, 1] < (end + X_dist)) &
+                     (X_locs.ix[:, 2] > (start - X_dist)))]
+    probes = [p for p in probe_locs.index if p in X_probes]
+    if len(probes) == 0: return None, None
+    subset = X.ix[probes, :]
+    subset.to_csv(fh.name, sep="\t", index=True, index_label="probe",
+                    float_format="%.4f")
+    fh.flush()
+    return fh, probe_locs
+
+def grouper(n, iterable):
+    "grouper(3, 'abcdefg', 'x') --> ('a','b','c'), ('d','e','f'), ('g','x','x')"
+    return zip(*[iter(iterable)]*n)
+
+from multiprocessing import Pool
+pool = Pool(5)
+
 def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         X=None, X_locs=None, X_dist=None, outlier_sds=None,
         liptak=False, bumping=False, gee_args=(), skat=False, png_path=None):
@@ -97,44 +119,39 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         X.index = [fix_name(xi) for xi in X.index]
         X_probes = set(X.index)
 
-    for cluster in cluster_gen:
-
-        if not X_locs is None:
-            fh = tempfile.NamedTemporaryFile(delete=True)
-            chrom = cluster[0].group
-            start, end = cluster[0].start, cluster[-1].end
-            probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
-                             (X_locs.ix[:, 1] < (end + X_dist)) &
-                             (X_locs.ix[:, 2] > (start - X_dist)))]
-            probes = [p for p in probe_locs.index if p in X_probes]
-            if len(probes) == 0: continue
-            subset = X.ix[probes, :]
-            subset.to_csv(fh.name, sep="\t", index=True, index_label="probe",
-                            float_format="%.4f")
-            fh.flush()
-            X_file = fh.name
-
-        res = run_model(cluster, covs, model, X_file, outlier_sds, liptak, bumping, gee_args,
-                skat)
-
-
-        if not X is None:
+    for clusters in grouper(5, cluster_gen):
+        args = []
+        for cluster in clusters:
             if not X_locs is None:
-                fh.close()
-            # got a pandas dataframe
-            df = res
-            for i, row in df.iterrows():
-                row = dict(row)
+                fh, probe_locs = take_subset(cluster, X_locs, X_dist, X_probes)
+                if fh is None: # no expression probes near the methylation probes
+                    continue
+                args.append((cluster, fh.name, fh, probe_locs))
+            else:
+                args.append((cluster, X_file))
+
+        for j, res in enumerate(pool.imap(run_model, ((a[0], covs, model, a[1],
+                                                  outlier_sds, liptak, bumping,
+                                                  gee_args, skat, i)
+                                  for i, a in enumerate(args)))):
+            if not X is None:
                 if not X_locs is None:
-                    distX(row, dict(probe_locs.ix[row['X'], :]))
-                yield row
+                    cluster, X_file, fh, probe_locs = args[j]
+                    fh.close()
+                # got a pandas dataframe
+                df = res
+                for i, row in df.iterrows():
+                    row = dict(row)
+                    if not X_locs is None:
+                        distX(row, dict(probe_locs.ix[row['X'], :]))
+                    yield row
 
-            continue
+                continue
 
-        if res['p'] < 1e-4 and png_path:
-            cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
-            plot_res(res, png_path, covs, covariate, cluster_df)
-        yield res
+            if res['p'] < 1e-4 and png_path:
+                cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
+                plot_res(res, png_path, covs, covariate, cluster_df)
+            yield res
 
 def plot_res(res, png_path, covs, covariate, cluster_df):
     from matplotlib import pyplot as plt
