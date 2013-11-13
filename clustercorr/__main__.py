@@ -114,9 +114,8 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             fh.flush()
             X_file = fh.name
 
-        res = run_model(cluster, covs, model, X_file, outlier_sds, liptak, bumping, gee_args,
-                skat)
-
+        res = run_model(cluster, covs, model, X_file, outlier_sds, liptak,
+                        bumping, gee_args, skat)
 
         if not X is None:
             if not X_locs is None:
