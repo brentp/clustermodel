@@ -13,6 +13,15 @@ def rcall(covs, model, X=None, kwargs=None):
     internal function to call R and return the result
     """
     if kwargs is None: kwargs = {}
+
+    # faster to use csv than to use pyper's conversion
+    if not isinstance(covs, str):
+        fh = tempfile.NamedTemporaryFile()
+        covs.to_csv(fh, index=False)
+        fh.flush()
+        covs = fh.name
+
+    assert os.path.exists(covs), covs
     r['combined_df'] = covs
     if X is None:
         kwargs_str = ", ".join("%s='%s'" % (k, v)
