@@ -116,9 +116,11 @@ def clustered_model(cov_df, cluster_df, model, X=None, gee_args=(), liptak=False
                methylation better describes the dependent variable.
     """
 
-    combined_df = cov_cluster_setup(cov_df, cluster_df, outlier_sds)
-    return clustered_model_frame(combined_df, model, X, gee_args, liptak, bumping,
-                                   skat)
+    cluster_var = gee_args[1] if gee_args else None
+    combined_df = cov_cluster_setup(cov_df, cluster_df, cluster_var,
+                                    outlier_sds)
+    return clustered_model_frame(combined_df, model, X, gee_args, liptak,
+                                 bumping, skat)
 
 def set_outlier_nan(cluster_df, n_sds):
     """
@@ -136,7 +138,7 @@ def set_outlier_nan(cluster_df, n_sds):
         rng = (m - (n_sds * s)), (m + (n_sds * s))
         row[((row < rng[0]) | (row > rng[1]))] = np.nan
 
-def cov_cluster_setup(cov_df, cluster_df, outlier_sds=None):
+def cov_cluster_setup(cov_df, cluster_df, cluster_var, outlier_sds=None):
     """
     turn two dataframes, one for methylation and 1 for covariates into a
     single, long dataframe.
@@ -180,7 +182,11 @@ def cov_cluster_setup(cov_df, cluster_df, outlier_sds=None):
     df_rep['CpG'] = np.repeat(cluster_df.index, n_probes)
     df_rep.index = range(len(df_rep))
     assert df_rep['CpG'][0] == df_rep['CpG'][1]
-    df_rep.sort(['id', 'CpG'], inplace=True)
+
+    if cluster_var:
+        df_rep.sort([cluster_var] + [x for x in ['id', 'CpG']
+                                     if x != cluster_var],
+                    inplace=True)
     return df_rep
 
 def clustered_model_frame(combined_df, model, X=None, gee_args=(), liptak=False,
