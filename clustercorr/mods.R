@@ -238,7 +238,7 @@ clust.lm = function(covs, formula, gee.corstr=NULL, gee.clustervar=NULL, limma.b
 
 
 fclust.lm = function(covs, formula, gee.corstr=NULL, ...){
-    covs = read.csv(covs)
+    if(is.character(covs)) covs = read.csv(covs)
     return(clust.lm(covs, formula, gee.corstr=gee.corstr, ...))
 }
 
@@ -246,8 +246,8 @@ fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, test
     library(parallel)
     library(data.table)
     formula = as.formula(formula)
+    if(is.character(covs)) covs = read.csv(covs)
 
-    covs = read.csv(covs)
     X = read.delim(gzfile(X), row.names=1)
     mc.cores = min(mc.cores, ncol(X))
 

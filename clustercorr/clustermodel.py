@@ -13,11 +13,12 @@ def rcall(covs, model, X=None, kwargs=None):
     internal function to call R and return the result
     """
     if kwargs is None: kwargs = {}
+    r['combined_df'] = covs
     if X is None:
         kwargs_str = ", ".join("%s='%s'" % (k, v)
                                 for k, v in kwargs.iteritems())
-        r("a <- c('nan', 'nan', 'nan'); a <- fclust.lm('%s', '%s', %s)"
-                % (covs, model, kwargs_str))
+        r("a <- c('nan', 'nan', 'nan'); a <- fclust.lm(combined_df, '%s', %s)"
+                % (model, kwargs_str))
         vals = r['a']
         ret = dict(covariate=vals[0], p=float(vals[1]), model=model)
         if len(vals) > 2:
@@ -33,8 +34,8 @@ def rcall(covs, model, X=None, kwargs=None):
         kwargs['mc.cores'] = mc_cores - 1
         kwargs_str = ", ".join("%s='%s'" % (k, v)
                                 for k, v in kwargs.iteritems())
-        r("a <- NA; a <- fclust.lm.X('%s', '%s', '%s', %s)"
-                % (covs, model, X, kwargs_str))
+        r("a <- NA; a <- fclust.lm.X(combined_df, '%s', '%s', %s)"
+                % (model, X, kwargs_str))
         df = r['a']
         return df
 
@@ -106,8 +107,8 @@ def clustered_model(cov_df, cluster_df, model, X=None, gee_args=(), liptak=False
                methylation better describes the dependent variable.
     """
 
-    with cov_cluster_setup(cov_df, cluster_df, outlier_sds) as fh:
-        return clustered_model_frame(fh.name, model, X, gee_args, liptak, bumping,
+    combined_df = cov_cluster_setup(cov_df, cluster_df, outlier_sds)
+    return clustered_model_frame(combined_df, model, X, gee_args, liptak, bumping,
                                    skat)
 
 def set_outlier_nan(cluster_df, n_sds):
@@ -168,16 +169,12 @@ def cov_cluster_setup(cov_df, cluster_df, outlier_sds=None):
 
     df_rep['methylation'] = methylation
     df_rep['CpG'] = np.repeat(cluster_df.index, n_probes)
+    df_rep.index = range(len(df_rep))
     assert df_rep['CpG'][0] == df_rep['CpG'][1]
+    df_rep.sort(['id', 'CpG'], inplace=True)
+    return df_rep
 
-    #start, end = cluster_df.index[0], cluster_df.index[-1]
-
-    fh = tempfile.NamedTemporaryFile(delete=True)
-    df_rep.sort(['id', 'CpG']).to_csv(fh)
-    fh.flush()
-    return fh
-
-def clustered_model_frame(fname_df, model, X=None, gee_args=(), liptak=False,
+def clustered_model_frame(combined_df, model, X=None, gee_args=(), liptak=False,
         bumping=False, skat=False):
     """
     the arguments to this function are identical to clustered_model()
@@ -188,18 +185,18 @@ def clustered_model_frame(fname_df, model, X=None, gee_args=(), liptak=False,
 
     if "|" in model:
         assert not any((skat, liptak, bumping, gee_args))
-        return rcall(fname_df, model, X)
+        return rcall(combined_df, model, X)
 
     if skat:
-        return rcall(fname_df, model, X, dict(skat=True))
+        return rcall(combined_df, model, X, dict(skat=True))
     elif liptak:
-        return rcall(fname_df, model, X, dict(liptak=True))
+        return rcall(combined_df, model, X, dict(liptak=True))
     elif bumping:
-        return rcall(fname_df, model, X, dict(bumping=True))
+        return rcall(combined_df, model, X, dict(bumping=True))
     elif gee_args:
         corr, cov = gee_args
         assert corr[:2] in ('ex', 'ar', 'in')
-        return rcall(fname_df, model, X, {"gee.corstr": corr, "gee.clustervar": cov})
+        return rcall(combined_df, model, X, {"gee.corstr": corr, "gee.clustervar": cov})
     else:
         raise Exception('must specify one of skat/liptak/bumping/gee_args'
                         ' or specify a mixed-effect model in lme4 syntax')
