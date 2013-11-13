@@ -195,7 +195,7 @@ def clustered_model_frame(combined_df, model, X=None, gee_args=(), liptak=False,
         return rcall(combined_df, model, X, dict(bumping=True))
     elif gee_args:
         corr, cov = gee_args
-        assert corr[:2] in ('ex', 'ar', 'in')
+        assert corr[:2] in ('ex', 'ar', 'in', 'un')
         return rcall(combined_df, model, X, {"gee.corstr": corr, "gee.clustervar": cov})
     else:
         raise Exception('must specify one of skat/liptak/bumping/gee_args'
