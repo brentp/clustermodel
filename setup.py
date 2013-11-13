@@ -37,7 +37,7 @@ setup(name='clustercorr',
       tests_require=['nose'],
       test_suite='nose.collector',
       zip_safe=False,
-      install_requires=['numpy', 'pandas', 'pyper', 'aclust', 'toolshed'],
+      install_requires=['numpy', 'pandas', 'aclust', 'toolshed'],
       #scripts=[],
       entry_points={
       },
