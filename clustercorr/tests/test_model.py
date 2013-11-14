@@ -64,11 +64,11 @@ def check_clustered_model_frame(fname, model, kwargs):
         assert not 'bumping' in res, res
 
     elif 'bumping' in res:
-        assert res['bumping']
-        assert not 'liptak' in res, res
+        assert res['bumping'][0]
+        assert not 'liptak' in res.columns, res
 
     else: # mixed model
-        assert "|" in res['model']
+        assert "|" in res['model'][0], res
         assert not 'liptak' in res, res
         assert not 'bumping' in res, res
 
@@ -106,7 +106,7 @@ def test_clustered_model():
 def check_clustered(r, model):
     assert 'p' in r
     assert 'coef' in r
-    assert isinstance(r['coef'], float)
+    assert isinstance(r['coef'][0], float), (r['coef'], r['coef'][0])
     assert r['model'] == model
 
 

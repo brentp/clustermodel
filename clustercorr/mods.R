@@ -19,6 +19,7 @@
 
 suppressPackageStartupMessages(library('limma', quietly=TRUE))
 suppressPackageStartupMessages(library('reshape2', quietly=TRUE))
+suppressPackageStartupMessages(library('parallel', quietly=TRUE))
 
 options(showWarnCalls=FALSE, warn=-1)
 
@@ -237,13 +238,21 @@ clust.lm = function(covs, formula, gee.corstr=NULL, gee.clustervar=NULL, limma.b
 }
 
 
-fclust.lm = function(covs, formula, gee.corstr=NULL, ...){
+fclust.lm = function(covs, formula, gee.corstr=NULL, ..., mc.cores=4){
+    suppressPackageStartupMessages(library('data.table', quietly=TRUE))
     if(is.character(covs)) covs = read.csv(covs)
-    return(clust.lm(covs, formula, gee.corstr=gee.corstr, ...))
+    if(!"cluster_set" %in% colnames(covs)){ covs$cluster_set = 0 }
+    cluster_ids = covs$cluster_set[!duplicated(covs$cluster_set)]
+    results = mclapply(covs$cluster_set[!duplicated(covs$cluster_set)], function(cs){
+        res = clust.lm(covs[covs$cluster_set == cs,], formula, gee.corstr=gee.corstr, ...)
+        list(covariate=res[1], p=res[2], coef=res[3], cluster_id=cs)
+    }, mc.cores=mc.cores)
+    results = rbindlist(results)
+    rownames(results) = cluster_ids
+    results
 }
 
 fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, testing=FALSE){
-    library(parallel)
     library(data.table)
     formula = as.formula(formula)
     if(is.character(covs)) covs = read.csv(covs)

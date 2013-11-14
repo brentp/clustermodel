@@ -2,7 +2,7 @@ import sys
 import tempfile
 import gzip
 import re
-from itertools import groupby, izip
+from itertools import groupby, izip_longest
 import numpy as np
 import pandas as pd
 from aclust import aclust
@@ -31,10 +31,10 @@ def run_model(clusters, covs, model, X, outlier_sds, liptak, bumping, gee_args,
     res = clustered_model(covs, cluster_df, model, X=X, gee_args=gee_args,
                 liptak=liptak, bumping=bumping, skat=skat,
                 outlier_sds=outlier_sds)
-    res['chrom'] = cluster[0].group
-    res['start'] = cluster[0].start
-    res['end'] = cluster[-1].end
-    res['n_probes'] = len(cluster)
+    res['chrom'] = [cluster[0].group for cluster in clusters]
+    res['start'] = [cluster[0].start for cluster in clusters]
+    res['end'] = [cluster[-1].end for cluster in clusters]
+    res['n_probes'] = [len(cluster) for cluster in clusters]
     return res
 
 def distX(dmr, expr):
@@ -84,9 +84,11 @@ def fix_name(name, patt=re.compile("-|:| ")):
     """
     return re.sub(patt, ".", name)
 
+
 def groups_of(n, iterable):
     args = [iter(iterable)] * n
-    return izip(*args)
+    for x in izip_longest(*args):
+        yield filter(None, x)
 
 def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         X=None, X_locs=None, X_dist=None, outlier_sds=None,
@@ -105,12 +107,12 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         X_probes = set(X.index)
 
     fh = tempfile.NamedTemporaryFile(delete=True)
-    for clusters in groups_of(4, cluster_gen):
+    for clusters in groups_of(400 if X is None else 100, cluster_gen):
 
         if not X_locs is None:
             fh.seek(0)
+            X_subsets, X_subsets_locs = []
             for i, cluster in enumerate(clusters):
-                X_subsets, X_subsets_locs = []
                 chrom = cluster[0].group
                 start, end = cluster[0].start, cluster[-1].end
                 probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
@@ -132,26 +134,25 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
 
         res = run_model(clusters, covs, model, X_file, outlier_sds, liptak,
                         bumping, gee_args, skat)
+        if X is None:
+            for i, row in res.iterrows():
+                yield dict(row)
+                if row['p'] < 1e-4 and png_path:
+                    cluster_df = cluster_to_dataframe(clusters[i], columns=covs.index)
+                    plot_res(row, png_path, covs, covariate, cluster_df)
+            continue
 
-        for i, (probe_locs, cluster) in enumerate(izip(X_subsets_locs,
-                                                       clusters)):
-            if not X is None:
+        if not X is None:
+            df = res[j]
+            for i, row in df.iterrows():
+                row = dict(row)
                 if not X_locs is None:
-                    fh.close()
-                # got a pandas dataframe
-                df = res
-                for i, row in df.iterrows():
-                    row = dict(row)
-                    if not X_locs is None:
-                        distX(row, dict(probe_locs.ix[row['X'], :]))
-                    yield row
+                    probe_locs = X_subsets_locs[i]
+                    distX(row, dict(probe_locs.ix[row['X'], :]))
+                yield row
 
-                continue
+            continue
 
-            if res['p'] < 1e-4 and png_path:
-                cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
-                plot_res(res, png_path, covs, covariate, cluster_df)
-            yield res
 
 def plot_res(res, png_path, covs, covariate, cluster_df):
     from matplotlib import pyplot as plt

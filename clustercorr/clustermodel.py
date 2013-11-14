@@ -1,10 +1,12 @@
 import os
 import sys
 import warnings
+from collections import Counter
 import numpy as np
 import pandas as pd
 from .pyper import R
 import tempfile
+
 r = R(max_len=5e7, return_err=False)
 r('source("%s/mods.R")' % os.path.dirname(__file__))
 
@@ -13,12 +15,16 @@ def rcall(covs, model, X=None, kwargs=None):
     internal function to call R and return the result
     """
     if kwargs is None: kwargs = {}
+    if not 'mc.cores' in kwargs:
+        import multiprocessing
+        mc_cores = multiprocessing.cpu_count()
+        kwargs['mc.cores'] = mc_cores
 
     # faster to use csv than to use pyper's conversion
     if not isinstance(covs, str):
-        #fh = tempfile.NamedTemporaryFile()
-        fh = open('ex.comb.txt', 'w')
-        print(covs.head())
+        fh = tempfile.NamedTemporaryFile()
+        #fh = open('ex.comb.txt', 'w')
+        #print(covs.head())
         covs.to_csv(fh, index=False)
         fh.flush()
         covs = fh.name
@@ -30,19 +36,20 @@ def rcall(covs, model, X=None, kwargs=None):
                                 for k, v in kwargs.iteritems())
         r("a <- c('nan', 'nan', 'nan'); a <- fclust.lm(combined_df, '%s', %s)"
                 % (model, kwargs_str))
-        vals = r['a']
-        ret = dict(covariate=vals[0], p=float(vals[1]), model=model)
-        if len(vals) > 2:
-            ret['coef'] = float(vals[2])
-        ret.update(kwargs)
-        return ret
+        df = r['a']
+        df['model'] = model
+        df['coef'] = df['coef'].astype(float)
+        #ret = dict(covariate=vals[0], p=float(vals[1]), model=model)
+        #if len(vals) > 2:
+        #    ret['coef'] = float(vals[2])
+        #df
+        for k, v in kwargs.iteritems():
+            df[k] = v
+        return df
     else:
         if False:
             "fclust.lm.X('%s', '%s', '%s', %s)" % (covs, model, X, kwargs_str)
             import shutil ;shutil.copyfile(covs, "/tmp/ttt.csv")
-        import multiprocessing
-        mc_cores = multiprocessing.cpu_count()
-        kwargs['mc.cores'] = mc_cores - 1
         kwargs_str = ", ".join("%s='%s'" % (k, v)
                                 for k, v in kwargs.iteritems())
         r("a <- NA; a <- fclust.lm.X(combined_df, '%s', '%s', %s)"
@@ -146,14 +153,19 @@ def cov_cluster_setup(cov_df, cluster_df, cluster_var, outlier_sds=None):
     (some) index from cov_df must match columns from cluster_df
     returns a file-handle of the merged dataframe.
     """
+    #cov_df.to_csv('cov_df.csv')
+    #cluster_df.to_csv('cluster_df.csv')
     if outlier_sds:
         set_outlier_nan(cluster_df, n_sds=outlier_sds)
 
-    n_probes = cluster_df.shape[1]
-    try:
+
+    try: # multiple clusters
         cluster_set = cluster_df.pop('cluster_set')
     except KeyError:
-        cluster_set = None
+        cluster_df['cluster_set'] = 0
+        cluster_set = cluster_df.pop('cluster_set')
+
+    n_samples = cluster_df.shape[1]
 
     methylation = np.asarray(cluster_df).flatten()
 
@@ -186,12 +198,22 @@ def cov_cluster_setup(cov_df, cluster_df, cluster_var, outlier_sds=None):
 
     df_rep['methylation'] = methylation
     if cluster_set is not None:
-        print cluster_set.shape
-        print cluster_df.head()
-        print df_rep.shape
-        print df_rep.head()
-        df_rep['cluster_set'] = cluster_set
-    df_rep['CpG'] = np.repeat(cluster_df.index, n_probes)
+        cpg_col, cluster_set_col = [], []
+
+        cluster_set_i = 0
+        for ci, (cset, n_probes) in \
+                        enumerate(sorted(Counter(cluster_set).items())):
+            cluster_set_col.extend([cset] * (n_probes * len(cov_df)))
+
+            for j in range(n_probes):
+                cpg_col.extend([cluster_df.index[j + cluster_set_i]] * n_samples)
+            cluster_set_i += n_probes
+
+        df_rep['cluster_set'] = cluster_set_col
+        df_rep['CpG'] = cpg_col
+    else:
+        df_rep['CpG'] = np.repeat(cluster_df.index, n_samples)
+
     df_rep.index = range(len(df_rep))
     assert df_rep['CpG'][0] == df_rep['CpG'][1]
 
@@ -199,7 +221,6 @@ def cov_cluster_setup(cov_df, cluster_df, cluster_var, outlier_sds=None):
         df_rep.sort([cluster_var] + [x for x in ['id', 'CpG']
                                      if x != cluster_var],
                     inplace=True)
-    print df_rep.head()
     return df_rep
 
 def clustered_model_frame(combined_df, model, X=None, gee_args=(), liptak=False,
