@@ -16,7 +16,9 @@ def rcall(covs, model, X=None, kwargs=None):
 
     # faster to use csv than to use pyper's conversion
     if not isinstance(covs, str):
-        fh = tempfile.NamedTemporaryFile()
+        #fh = tempfile.NamedTemporaryFile()
+        fh = open('ex.comb.txt', 'w')
+        print(covs.head())
         covs.to_csv(fh, index=False)
         fh.flush()
         covs = fh.name
@@ -115,7 +117,6 @@ def clustered_model(cov_df, cluster_df, model, X=None, gee_args=(), liptak=False
         skat - if set to True, use skat to test if modelling the CpG
                methylation better describes the dependent variable.
     """
-
     cluster_var = gee_args[1] if gee_args else None
     combined_df = cov_cluster_setup(cov_df, cluster_df, cluster_var,
                                     outlier_sds)
@@ -149,6 +150,11 @@ def cov_cluster_setup(cov_df, cluster_df, cluster_var, outlier_sds=None):
         set_outlier_nan(cluster_df, n_sds=outlier_sds)
 
     n_probes = cluster_df.shape[1]
+    try:
+        cluster_set = cluster_df.pop('cluster_set')
+    except KeyError:
+        cluster_set = None
+
     methylation = np.asarray(cluster_df).flatten()
 
     cov_df['id'] = np.arange(cov_df.shape[0]).astype(int)
@@ -179,6 +185,12 @@ def cov_cluster_setup(cov_df, cluster_df, cluster_var, outlier_sds=None):
                     'that it can be sorted. using alpha-numeric sort instead')
 
     df_rep['methylation'] = methylation
+    if cluster_set is not None:
+        print cluster_set.shape
+        print cluster_df.head()
+        print df_rep.shape
+        print df_rep.head()
+        df_rep['cluster_set'] = cluster_set
     df_rep['CpG'] = np.repeat(cluster_df.index, n_probes)
     df_rep.index = range(len(df_rep))
     assert df_rep['CpG'][0] == df_rep['CpG'][1]
@@ -187,6 +199,7 @@ def cov_cluster_setup(cov_df, cluster_df, cluster_var, outlier_sds=None):
         df_rep.sort([cluster_var] + [x for x in ['id', 'CpG']
                                      if x != cluster_var],
                     inplace=True)
+    print df_rep.head()
     return df_rep
 
 def clustered_model_frame(combined_df, model, X=None, gee_args=(), liptak=False,

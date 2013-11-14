@@ -2,7 +2,7 @@ import sys
 import tempfile
 import gzip
 import re
-from itertools import groupby
+from itertools import groupby, izip
 import numpy as np
 import pandas as pd
 from aclust import aclust
@@ -17,11 +17,15 @@ def is_numeric(pd_series):
         return len(pd_series.unique()) > 2
     return False
 
-def run_model(cluster, covs, model, X, outlier_sds, liptak, bumping, gee_args,
+def run_model(clusters, covs, model, X, outlier_sds, liptak, bumping, gee_args,
         skat):
     # we turn the cluster list into a pandas dataframe with columns
     # of samples and rows of probes. these must match our covariates
-    cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
+    cluster_dfs = [cluster_to_dataframe(c, columns=covs.index) for c in
+            clusters]
+    for ic, c in enumerate(cluster_dfs):
+        c['cluster_set'] = ic
+    cluster_df = pd.concat(cluster_dfs)
 
         # now we want to test a model on our clustered dataset.
     res = clustered_model(covs, cluster_df, model, X=X, gee_args=gee_args,
@@ -80,6 +84,9 @@ def fix_name(name, patt=re.compile("-|:| ")):
     """
     return re.sub(patt, ".", name)
 
+def groups_of(n, iterable):
+    args = [iter(iterable)] * n
+    return izip(*args)
 
 def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         X=None, X_locs=None, X_dist=None, outlier_sds=None,
@@ -97,43 +104,54 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         X.index = [fix_name(xi) for xi in X.index]
         X_probes = set(X.index)
 
-    for cluster in cluster_gen:
+    fh = tempfile.NamedTemporaryFile(delete=True)
+    for clusters in groups_of(4, cluster_gen):
 
         if not X_locs is None:
-            fh = tempfile.NamedTemporaryFile(delete=True)
-            chrom = cluster[0].group
-            start, end = cluster[0].start, cluster[-1].end
-            probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
-                             (X_locs.ix[:, 1] < (end + X_dist)) &
-                             (X_locs.ix[:, 2] > (start - X_dist)))]
-            probes = [p for p in probe_locs.index if p in X_probes]
-            if len(probes) == 0: continue
-            subset = X.ix[probes, :]
-            subset.to_csv(fh.name, sep="\t", index=True, index_label="probe",
-                            float_format="%.4f")
-            fh.flush()
+            fh.seek(0)
+            for i, cluster in enumerate(clusters):
+                X_subsets, X_subsets_locs = []
+                chrom = cluster[0].group
+                start, end = cluster[0].start, cluster[-1].end
+                probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
+                                 (X_locs.ix[:, 1] < (end + X_dist)) &
+                                 (X_locs.ix[:, 2] > (start - X_dist)))]
+                probes = [p for p in probe_locs.index if p in X_probes]
+                if len(probes) == 0: continue
+                subset = X.ix[probes, :]
+                subset['cluster_set'] = ic
+                X_subsets.append(subset)
+                X_subsets_locs.append(probe_locs)
+                #.to_csv(fh.name, sep="\t", index=True, index_label="probe",
+                #                 float_format="%.5f")
+                #fh.flush()
+                #X_file = fh.name
+            pd.concat(X_subsets).to_csv(fh.name, sep="\t", index=True,
+                    float_format="%.5f")
             X_file = fh.name
 
-        res = run_model(cluster, covs, model, X_file, outlier_sds, liptak,
+        res = run_model(clusters, covs, model, X_file, outlier_sds, liptak,
                         bumping, gee_args, skat)
 
-        if not X is None:
-            if not X_locs is None:
-                fh.close()
-            # got a pandas dataframe
-            df = res
-            for i, row in df.iterrows():
-                row = dict(row)
+        for i, (probe_locs, cluster) in enumerate(izip(X_subsets_locs,
+                                                       clusters)):
+            if not X is None:
                 if not X_locs is None:
-                    distX(row, dict(probe_locs.ix[row['X'], :]))
-                yield row
+                    fh.close()
+                # got a pandas dataframe
+                df = res
+                for i, row in df.iterrows():
+                    row = dict(row)
+                    if not X_locs is None:
+                        distX(row, dict(probe_locs.ix[row['X'], :]))
+                    yield row
 
-            continue
+                continue
 
-        if res['p'] < 1e-4 and png_path:
-            cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
-            plot_res(res, png_path, covs, covariate, cluster_df)
-        yield res
+            if res['p'] < 1e-4 and png_path:
+                cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
+                plot_res(res, png_path, covs, covariate, cluster_df)
+            yield res
 
 def plot_res(res, png_path, covs, covariate, cluster_df):
     from matplotlib import pyplot as plt
