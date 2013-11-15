@@ -115,9 +115,7 @@ def clustered_model(cov_df, cluster_df, model, X=None, gee_args=(), liptak=False
                methylation better describes the dependent variable.
     """
 
-    cluster_var = gee_args[1] if gee_args else None
-    combined_df = cov_cluster_setup(cov_df, cluster_df, cluster_var,
-                                    outlier_sds)
+    combined_df = cov_cluster_setup(cov_df, cluster_df, outlier_sds)
     return clustered_model_frame(combined_df, model, X, gee_args, liptak,
                                  bumping, skat)
 
@@ -137,7 +135,7 @@ def set_outlier_nan(cluster_df, n_sds):
         rng = (m - (n_sds * s)), (m + (n_sds * s))
         row[((row < rng[0]) | (row > rng[1]))] = np.nan
 
-def cov_cluster_setup(cov_df, cluster_df, cluster_var, outlier_sds=None):
+def cov_cluster_setup(cov_df, cluster_df, outlier_sds=None):
     """
     turn two dataframes, one for methylation and 1 for covariates into a
     single, long dataframe.
@@ -147,46 +145,17 @@ def cov_cluster_setup(cov_df, cluster_df, cluster_var, outlier_sds=None):
     if outlier_sds:
         set_outlier_nan(cluster_df, n_sds=outlier_sds)
 
-    n_probes = cluster_df.shape[1]
-    methylation = np.asarray(cluster_df).flatten()
-
-    cov_df['id'] = np.arange(cov_df.shape[0]).astype(int)
-
-    if not set(cov_df.index).intersection(cluster_df.columns):
+    methylation = cluster_df.T
+    if not set(cov_df.index).intersection(methylation.index):
         raise Exception("must share cov_df.index, cluster_df.columns")
 
-    # we adjust here in case cluster_df samples are a subset of those in cov_df
-    # also assures order is same.
-    # this makes a *long* dataframe with n_samples * n_CpG's rows.
-    df_rep = pd.concat([cov_df.ix[cluster_df.columns, :]
-                       for i in range(len(cluster_df))])
-    del cov_df['id']
+    n_probes = cluster_df.shape[1]
+    combined_df = cov_df.copy()
+    combined_df['id'] = np.arange(cov_df.shape[0]).astype(int)
+    for c in methylation.columns:
+        combined_df['CpG__' + str(c)] = methylation[c]
 
-    if not np.issubdtype(cluster_df.index.dtype, np.int):
-
-        sep = ":" if ":" in cluster_df.index[0] else "_" \
-                  if "_" in cluster_df.index[0] else None
-        if sep is None:
-            warnings.warn('NOTE: cluster.index should have dtype int so that it'
-                    ' can be sorted. using alpha-numeric sort instead')
-
-        else:
-            try: # convert 'chr1:1234' to 1234
-                cluster_df.index = [int(x.split(sep)[1]) for x in cluster_df.index]
-            except:
-                warnings.warn('NOTE: cluster.index should have dtype int so '
-                    'that it can be sorted. using alpha-numeric sort instead')
-
-    df_rep['methylation'] = methylation
-    df_rep['CpG'] = np.repeat(cluster_df.index, n_probes)
-    df_rep.index = range(len(df_rep))
-    assert df_rep['CpG'][0] == df_rep['CpG'][1]
-
-    if cluster_var:
-        df_rep.sort([cluster_var] + [x for x in ['id', 'CpG']
-                                     if x != cluster_var],
-                    inplace=True)
-    return df_rep
+    return combined_df
 
 def clustered_model_frame(combined_df, model, X=None, gee_args=(), liptak=False,
         bumping=False, skat=False):

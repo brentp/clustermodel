@@ -32,19 +32,11 @@ stouffer_liptak = function(pvalues, sigma, lower.tail=TRUE){
     return(list(C=Cp, p=pstar))
 }
 
-stouffer_liptak.run = function(covs, formula){
-    if(do.binomial(covs, formula)){
-       covs[,all.vars(formula)[1]] = as.numeric(covs[,all.vars(formula)[1]])
-    }
-    meth = dcast(covs, CpG ~ id, value.var=all.vars(formula)[1])
-    rownames(meth) = meth$CpG
-    meth = as.matrix(meth[,2:ncol(meth)], nrow=nrow(meth))
-    covs = covs[covs$CpG == unique(covs$CpG)[1],]
-    # account for missing data in methylation
-    cc = complete.cases(t(meth))
-    meth = meth[,cc]
+stouffer_liptak.run = function(covs, meth, formula){
     # TODO: what if missing data in covariates.
-    mod = model.matrix(formula, covs[cc,])
+    covs$methylation = 1 # 
+
+    mod = model.matrix(formula, covs)
     covariate = colnames(mod)[1 + as.integer(colnames(mod)[1] == "(Intercept)")]
 
     fit = eBayes(lmFit(meth, mod))
@@ -80,6 +72,9 @@ permute.residuals = function(mat, mod, mod0, iterations=100, p_samples=1, mc.cor
         ifit = lmFit(mat_sim, mod)
         icoef = coefficients(ifit)[,coef.name]
         w = ifit$sigma
+        # get names as integer positions:
+        names(icoef) = gsub(".*?(\\d+)$", "\\1", names(icoef), perl=T)
+        names(w) = gsub(".*?(\\d+)$", "\\1", names(w), perl=T)
         sum.lowess(icoef, w)
     }, mc.cores=mc.cores)
         
@@ -98,38 +93,31 @@ sum.lowess = function(icoefs, weights, span=0.2){
     return(sum(res$fitted))
 }
 
-bumping.run = function(covs, formula, n_sims=100){
+bumping.run = function(covs, meth, formula, n_sims=100){
     suppressPackageStartupMessages(library('parallel', quietly=TRUE))
+    covs$methylation = 1 # for formula => model.matrix
 
-    # convert to a integer column as needed. e.g. disease TRUE/FALSE => 1/0
-    if(do.binomial(covs, formula)){
-        covs[,all.vars(formula)[1]] = as.numeric(covs[,all.vars(formula)[1]])
-    }
-    meth = dcast(covs, CpG ~ id, value.var=all.vars(formula)[1])
-    rownames(meth) = meth$CpG
-    meth = as.matrix(meth[,2:ncol(meth)], nrow=nrow(meth))
-    acovs = covs[covs$CpG == unique(covs$CpG)[1],]
-
-    # remove probes with missing data in meth
-    cc = complete.cases(t(meth))
-    meth = meth[,cc]
-  
-    mod = model.matrix(formula, acovs[cc,])
+    mod = model.matrix(formula, covs)
     covariate = colnames(mod)[1 + as.integer(colnames(mod)[1] == "(Intercept)")]
     mod0 = mod[,!colnames(mod) == covariate, drop=FALSE]
-  
+
     sim_beta_sums = permute.residuals(meth, mod, mod0, iterations=n_sims)
     stopifnot(length(sim_beta_sums) == n_sims)
+
     fit = lmFit(meth, mod)
     w = fit$sigma
+
     icoef = coefficients(fit)[,covariate]
+    # get names as integer positions:
+    names(icoef) = gsub(".*?(\\d+)$", "\\1", names(icoef), perl=T)
+    names(w) = gsub(".*?(\\d+)$", "\\1", names(w), perl=T)
     beta_sum = sum.lowess(icoef, w)
 
     raw_beta_sum = sum(coefficients(fit)[,covariate])
     ngt = sum(abs(sim_beta_sums) >= abs(beta_sum))
-    if(ngt < 4 & n_sims == 100) return(bumping.run(covs, formula, 2000))
-    if(ngt < 10 & n_sims == 2000) return(bumping.run(covs, formula, 5000))
-    if(ngt < 10 & n_sims == 5000) return(bumping.run(covs, formula, 15000))
+    if(ngt < 4 & n_sims == 100) return(bumping.run(covs, meth, formula, 2000))
+    if(ngt < 10 & n_sims == 2000) return(bumping.run(covs, meth, formula, 5000))
+    if(ngt < 10 & n_sims == 5000) return(bumping.run(covs, meth, formula, 15000))
     pval = (1 + ngt) / (1 + n_sims)
     return(c(covariate, pval, raw_beta_sum / nrow(meth)))
 }
@@ -137,24 +125,16 @@ bumping.run = function(covs, formula, n_sims=100){
 #covs = read.csv(file='t.txt')
 #bumping.run(covs, methylation ~ asthma)
 
-do.binomial = function(covs, formula, idx=1){
-    indep = all.vars(formula)[idx]
-    length(unique(covs[,indep])) == 2
-}
-
 gee.run = function(covs, formula, cluster_col="CpG", corstr="ex"){
+    # assume it's already sorted by CpG, then by id.
+    if(cluster_col != "CpG" && corstr == "ar"){
+        covs = covs[order(covs[,cluster_col], covs$CpG),]
+    }
     suppressPackageStartupMessages(library('geepack', quietly=TRUE))
     stopifnot(!is.null(cluster_col))
     covs$clustervar = covs[,cluster_col]
     # can't do logistc with cluster_col of id, gives bad results for some reason
-    db = do.binomial(covs, formula)
-    if(db && cluster_col == "id"){ message("warning:can't use logisitic regression with id as cluster") }
-
-    if(db){
-        s = summary(geeglm(formula, id=clustervar, data=covs, corstr=corstr, family=binomial))
-    } else {
-        s = summary(geeglm(formula, id=clustervar, data=covs, corstr=corstr))
-    }
+    s = summary(geeglm(formula, id=clustervar, data=covs, corstr=corstr))
     mm = model.matrix(formula, covs)
     covariate = colnames(mm)[1 + as.integer(colnames(mm)[1] == "(Intercept)")]
     row = s$coefficients[covariate,]
@@ -168,11 +148,7 @@ mixed_model.run = function(covs, formula){
     suppressPackageStartupMessages(library('lme4', quietly=TRUE))
     suppressPackageStartupMessages(library('multcomp', quietly=TRUE))
     # automatically do logit regression.
-    if(do.binomial(covs, formula)){
-        m = glmer(formula, covs, family=binomial)
-    } else {
-        m = lmer(formula, covs)
-    }
+    m = lmer(formula, covs)
     # take the first column unless it is intercept
     covariate = names(fixef(m))[1 + as.integer(names(fixef(m))[1] == "(Intercept)")]
     s = summary(glht(m, paste(covariate, "0", sep=" == ")))
@@ -180,23 +156,14 @@ mixed_model.run = function(covs, formula){
 }
 
 
-skat.run = function(covs, formula){
+skat.run = function(covs, meth, formula, r.corr=c(0.00, 0.015, 0.06, 0.15)){
     suppressPackageStartupMessages(library('SKAT', quietly=TRUE))
-    meth = dcast(covs, CpG ~ id, value.var="methylation")
-    rownames(meth) = meth$CpG
-    meth = t(as.matrix(meth[,2:ncol(meth)], nrow=nrow(meth)))
-
-    #cc = complete.cases(meth)
-    #meth = meth[cc,]
-
     covariate = all.vars(formula)[1]
-    #write.csv(covs, file="/tmp/sk.csv")
-    covs = covs[covs$CpG == unique(covs$CpG)[1],]
-    #covs = covs[cc,]
 
     capture.output(obj <- SKAT_Null_Model(formula, out_type="D", data=covs))
     #sk <- SKAT(meth, obj, is_check_genotype=FALSE, method="davies", r.corr=0.6, kernel="linear")
-    sk <- SKAT(meth, obj, is_check_genotype=FALSE, method="optimal.adj", kernel="linear")
+    sk <- SKAT(meth, obj, is_check_genotype=FALSE, method="optimal.adj", kernel="linear",
+            r.corr=r.corr)
     #sk <- SKAT(meth, obj, is_check_genotype=TRUE, method="optimal.adj", kernel="linear.weighted", weights.beta=c(1, 10))
     #sk <- SKAT(meth, obj, is_check_genotype=TRUE, method="optimal.adj", kernel="linear")
     #sink()
@@ -206,20 +173,44 @@ skat.run = function(covs, formula){
 #covs = read.csv('/tmp/sk.csv')
 #skat.run(covs, asthma ~ age + gender + race_white + race_hispanic + race_aa)
 
+long.covs = function(covs, meth){
+    n_samples = nrow(covs)
+    stopifnot(nrow(meth) == n_samples)
+    # e.g. meth is 68 patients * 4 CpGs
+    #      covs is 68 patients * 5 covariates
+    # need to replicated covs 4 times (1 per CpG)
+    covs = covs[rep(1:nrow(covs), ncol(meth)),]
+    cpgs = gsub("CpG__", '', colnames(meth), fixed=TRUE)
+    dim(meth) = NULL
+    covs$methylation = meth
+    covs$CpG = rep(cpgs, each=n_samples) # 1 1 1, 2 2 2, etc since CpG's are grouped.
+    covs
+}
+
+
 clust.lm = function(covs, formula, gee.corstr=NULL, gee.clustervar=NULL, limma.block=NULL, bumping=FALSE, liptak=FALSE, skat=FALSE){
     formula = as.formula(formula)
     stopifnot(is.null(gee.corstr) || is.null(limma.block))
-    if(bumping){
-        return(bumping.run(covs, formula))
+
+    # we assume there is one extra column for each CpG
+    meth = as.matrix(covs[,grep("CpG__", colnames(covs), fixed=TRUE)])
+    rownames(meth) = rownames(covs)
+
+    if(bumping){ # wide
+        return(bumping.run(covs, t(meth), formula))
     }
-    if(skat){
-        return(skat.run(covs, formula))
+    if(skat){ # wide
+        return(skat.run(covs, meth, formula))
     }
-    if(liptak){
-        return(stouffer_liptak.run(covs, formula))
+    if(liptak){ # wide
+        return(stouffer_liptak.run(covs, t(meth), formula))
     }
-    stopifnot("methylation" %in% colnames(covs))
+    ###########################################
+    # GEE and mixed models require long format.
+    ###########################################
+    covs = long.covs(covs[,grep("CpG__", colnames(covs), fixed=TRUE, invert=TRUE)], meth)
     is.mixed.model = any(grepl("|", attr(terms(formula), 'term.labels'), fixed=TRUE))
+    #write.csv(covs, 'long.covs.t.csv')
     # mixed-model
     if (is.null(gee.corstr) && is.null(limma.block)){
         stopifnot(is.mixed.model)
@@ -230,15 +221,31 @@ clust.lm = function(covs, formula, gee.corstr=NULL, gee.clustervar=NULL, limma.b
         return(gee.run(covs, formula, cluster_col=gee.clustervar, corstr=gee.corstr))
     # limma
     } else {
-        # TODO
+        # TODO this goes in the matrix section above and uses
+        # duplicateCorrelation
         stop()
     }
 
 }
 
+if(FALSE){
+    covs = read.csv('covs.wide.txt')
+    #print(clust.lm(covs, methylation ~ gene.E + disease, bumping=TRUE))
+    print(clust.lm(covs, methylation ~ gene.E + disease + (1|id) + (1|CpG)))
+    print(clust.lm(covs, methylation ~ gene.E + disease + (1|id)))
+    #print(clust.lm(covs, methylation ~ gene.E, gee.clustervar="id", gee.corstr="ex"))
+    print(clust.lm(covs, methylation ~ gene.E, gee.clustervar="id", gee.corstr="ex"))
+    print(clust.lm(covs, methylation ~ gene.E, gee.clustervar="id", gee.corstr="ar"))
+    print(clust.lm(covs, methylation ~ gene.E, liptak=TRUE))
+    print(clust.lm(covs, methylation ~ gene.E, bumping=TRUE))
+    print(clust.lm(covs, disease ~ gene.E, skat=TRUE))
+    #print(clust.lm(covs, methylation ~ gene.E, gee.clustervar="CpG", gee.corstr="un"))
+}
+
 
 fclust.lm = function(covs, formula, gee.corstr=NULL, ...){
     if(is.character(covs)) covs = read.csv(covs)
+
     return(clust.lm(covs, formula, gee.corstr=gee.corstr, ...))
 }
 
