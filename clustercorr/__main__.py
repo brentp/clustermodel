@@ -96,11 +96,12 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         X = pd.read_table(xopen(X), index_col=0)
         X.index = [fix_name(xi) for xi in X.index]
         X_probes = set(X.index)
+        fh = tempfile.NamedTemporaryFile(delete=True)
 
     for cluster in cluster_gen:
 
         if not X_locs is None:
-            fh = tempfile.NamedTemporaryFile(delete=True)
+            fh.seek(0)
             chrom = cluster[0].group
             start, end = cluster[0].start, cluster[-1].end
             probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
@@ -118,8 +119,6 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
                         bumping, gee_args, skat)
 
         if not X is None:
-            if not X_locs is None:
-                fh.close()
             # got a pandas dataframe
             df = res
             for i, row in df.iterrows():
@@ -134,6 +133,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
             plot_res(res, png_path, covs, covariate, cluster_df)
         yield res
+
 
 def plot_res(res, png_path, covs, covariate, cluster_df):
     from matplotlib import pyplot as plt
