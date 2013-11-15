@@ -2,7 +2,8 @@ import sys
 import tempfile
 import gzip
 import re
-from itertools import groupby
+from itertools import groupby, izip_longest
+from collections import OrderedDict
 import numpy as np
 import pandas as pd
 from aclust import aclust
@@ -17,10 +18,11 @@ def is_numeric(pd_series):
         return len(pd_series.unique()) > 2
     return False
 
-def run_model(cluster, covs, model, X, outlier_sds, liptak, bumping, gee_args,
+def run_model(clusters, covs, model, X, outlier_sds, liptak, bumping, gee_args,
         skat):
     # we turn the cluster list into a pandas dataframe with columns
     # of samples and rows of probes. these must match our covariates
+HERE
     cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
 
         # now we want to test a model on our clustered dataset.
@@ -51,11 +53,14 @@ def distX(dmr, expr):
             dmr['distance'] *= -1
     dmr['Xstart'], dmr['Xend'], dmr['Xstrand'] = expr['start'], expr['end'], expr['strand']
 
-def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
-        rho_min=0.3, min_clust_size=2, sep="\t",
-        X=None, X_locs=None, X_dist=None,
-        outlier_sds=None,
-        liptak=False, bumping=False, gee_args=(), skat=False, png_path=None):
+
+def clustermodel(fcovs, fmeth, model,
+                 max_dist=500, linkage='complete', rho_min=0.3, min_clust_size=2,
+                 sep="\t",
+                 X=None, X_locs=None, X_dist=None,
+                 outlier_sds=None,
+                 liptak=False, bumping=False, gee_args=(), skat=False,
+                 png_path=None):
     # an iterable of feature objects
     feature_iter = feature_gen(fmeth, rho_min=rho_min)
     assert min_clust_size > 1
@@ -69,6 +74,7 @@ def clustermodel(fcovs, fmeth, model, max_dist=500, linkage='complete',
             skat=False, png_path=None):
         yield res
 
+
 def fix_name(name, patt=re.compile("-|:| ")):
     """
     >>> fix_name('asd f')
@@ -81,15 +87,24 @@ def fix_name(name, patt=re.compile("-|:| ")):
     return re.sub(patt, ".", name)
 
 
+def groups_of(n, iterable):
+    args = [iter(iterable)] * n
+    for x in izip_longest(*args):
+        yield [v for v in x if v is not None]
+
+
 def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
-        X=None, X_locs=None, X_dist=None, outlier_sds=None,
-        liptak=False, bumping=False, gee_args=(), skat=False, png_path=None):
+                    X=None, X_locs=None, X_dist=None,
+                    outlier_sds=None,
+                    liptak=False, bumping=False, gee_args=(), skat=False,
+                    png_path=None):
 
     covs = pd.read_table(fcovs, index_col=0, sep=sep)
     covariate = model.split("~")[1].split("+")[0].strip()
     X_file = X
 
-    if not X_locs is None: # read expression into memory and pull out subsets as needed.
+    # read expression into memory and pull out subsets as needed.
+    if not X_locs is None:
         # change names so R formulas are OK
         X_locs = pd.read_table(xopen(X_locs), index_col="probe")
         X_locs.index = [fix_name(xi) for xi in X_locs.index]
@@ -98,24 +113,26 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         X_probes = set(X.index)
         fh = tempfile.NamedTemporaryFile(delete=True)
 
-    for cluster in cluster_gen:
+    for clusters in groups_of(20, cluster_gen):
 
         if not X_locs is None:
             fh.seek(0)
-            chrom = cluster[0].group
-            start, end = cluster[0].start, cluster[-1].end
-            probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
+            probes = []
+            for cluster in clusters:
+                chrom = cluster[0].group
+                start, end = cluster[0].start, cluster[-1].end
+                probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
                              (X_locs.ix[:, 1] < (end + X_dist)) &
                              (X_locs.ix[:, 2] > (start - X_dist)))]
-            probes = [p for p in probe_locs.index if p in X_probes]
+                probes.extend([p for p in probe_locs.index if p in X_probes])
             if len(probes) == 0: continue
-            subset = X.ix[probes, :]
-            subset.to_csv(fh.name, sep="\t", index=True, index_label="probe",
-                            float_format="%.4f")
+            probes = OrderedDict.fromkeys(probes).keys()
+            X.ix[probes, :].to_csv(fh.name, sep="\t", index=True,
+                                   index_label="probe", float_format="%.4f")
             fh.flush()
             X_file = fh.name
 
-        res = run_model(cluster, covs, model, X_file, outlier_sds, liptak,
+        res = run_model(clusters, covs, model, X_file, outlier_sds, liptak,
                         bumping, gee_args, skat)
 
         if not X is None:

@@ -8,6 +8,7 @@ import tempfile
 r = R(max_len=5e7, return_err=False)
 r('source("%s/mods.R")' % os.path.dirname(__file__))
 
+
 def rcall(covs, model, X=None, kwargs=None):
     """
     internal function to call R and return the result
