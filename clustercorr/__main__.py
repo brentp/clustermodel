@@ -2,6 +2,7 @@ import sys
 import tempfile
 import gzip
 import re
+from collections import OrderedDict
 from itertools import groupby, izip_longest
 import numpy as np
 import pandas as pd
@@ -31,10 +32,22 @@ def run_model(clusters, covs, model, X, outlier_sds, liptak, bumping, gee_args,
     res = clustered_model(covs, cluster_df, model, X=X, gee_args=gee_args,
                 liptak=liptak, bumping=bumping, skat=skat,
                 outlier_sds=outlier_sds)
-    res['chrom'] = [cluster[0].group for cluster in clusters]
-    res['start'] = [cluster[0].start for cluster in clusters]
-    res['end'] = [cluster[-1].end for cluster in clusters]
-    res['n_probes'] = [len(cluster) for cluster in clusters]
+    res['chrom'] = "CHR"
+    res['start'] = 1
+    res['end'] = 1
+    res['n_probes'] = 0
+    if "cluster_id" in res.columns:
+        for i, c in enumerate(clusters):
+            res.ix[res.cluster_id == i, 'chrom'] = c[0].group
+            res.ix[res.cluster_id == i, 'start'] = c[0].start
+            res.ix[res.cluster_id == i, 'end'] = c[-1].end
+            res.ix[res.cluster_id == i, 'n_probes'] = len(c)
+    else:
+        assert len(clusters) == 1
+        res['chrom'] = clusters[0][0].group
+        res['start'] = clusters[0][0].start
+        res['end'] = clusters[-1][-1].end
+        res['n_probes'] = len(clusters[0])
     return res
 
 def distX(dmr, expr):
@@ -107,29 +120,29 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         X_probes = set(X.index)
 
     fh = tempfile.NamedTemporaryFile(delete=True)
-    for clusters in groups_of(400 if X is None else 100, cluster_gen):
+    for clusters in groups_of(400 if X is None else 1, cluster_gen):
 
         if not X_locs is None:
             fh.seek(0)
-            X_subsets, X_subsets_locs = []
-            for i, cluster in enumerate(clusters):
+            probes = []
+            #X_subsets, X_subsets_locs = [], []
+            for ic, cluster in enumerate(clusters):
                 chrom = cluster[0].group
                 start, end = cluster[0].start, cluster[-1].end
                 probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
                                  (X_locs.ix[:, 1] < (end + X_dist)) &
                                  (X_locs.ix[:, 2] > (start - X_dist)))]
-                probes = [p for p in probe_locs.index if p in X_probes]
-                if len(probes) == 0: continue
-                subset = X.ix[probes, :]
-                subset['cluster_set'] = ic
-                X_subsets.append(subset)
-                X_subsets_locs.append(probe_locs)
-                #.to_csv(fh.name, sep="\t", index=True, index_label="probe",
-                #                 float_format="%.5f")
-                #fh.flush()
+                probes.extend([p for p in probe_locs.index if p in X_probes])
+            if len(probes) == 0: continue
+
+            # keep order, remove dups.
+            probes = OrderedDict.fromkeys(probes).keys()
+            X_subset = X.ix[probes, :]
+            #X_subsets_locs = X_locs.ix[probes, :]
                 #X_file = fh.name
-            pd.concat(X_subsets).to_csv(fh.name, sep="\t", index=True,
-                    float_format="%.5f")
+            X_subset.to_csv(fh.name, sep="\t", index=True,
+                    float_format="%.5f", index_label="probe")
+            fh.flush()
             X_file = fh.name
 
         res = run_model(clusters, covs, model, X_file, outlier_sds, liptak,
@@ -143,12 +156,11 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             continue
 
         if not X is None:
-            df = res[j]
+            df = res
             for i, row in df.iterrows():
                 row = dict(row)
                 if not X_locs is None:
-                    probe_locs = X_subsets_locs[i]
-                    distX(row, dict(probe_locs.ix[row['X'], :]))
+                    distX(row, dict(X_locs.ix[row['X'], :]))
                 yield row
 
             continue

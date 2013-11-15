@@ -231,7 +231,6 @@ def clustered_model_frame(combined_df, model, X=None, gee_args=(), liptak=False,
     this allows calling a number of methods without writing to a new
     file each time
     """
-
     if "|" in model:
         assert not any((skat, liptak, bumping, gee_args))
         return rcall(combined_df, model, X)

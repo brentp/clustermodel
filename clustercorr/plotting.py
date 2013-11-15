@@ -1,6 +1,6 @@
 # from: http://nbviewer.ipython.org/urls/raw.github.com/EnricoGiampieri/dataplot/master/statplot.ipynb
-import matplotlib
-matplotlib.use('Agg')
+#import matplotlib
+#matplotlib.use('Agg')
 import numpy as np
 import pylab as plt
 from collections import OrderedDict

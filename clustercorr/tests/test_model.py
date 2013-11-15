@@ -41,7 +41,7 @@ def test_model_frame_X():
         res = clustered_model_frame(fname,
                 "methylation ~ disease + (1|CpG)", X=fh.name)
 
-        assert (res.index == sub.index).all()
+        assert (res.index == sub.index).all(), (res.index, sub.index)
         for col in "covariate p coef X model".split():
             col in res.columns, res.columns
 

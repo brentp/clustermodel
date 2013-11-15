@@ -252,55 +252,60 @@ fclust.lm = function(covs, formula, gee.corstr=NULL, ..., mc.cores=4){
     results
 }
 
+
 fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, testing=FALSE){
     library(data.table)
     formula = as.formula(formula)
     if(is.character(covs)) covs = read.csv(covs)
 
     X = read.delim(gzfile(X), row.names=1)
+
     mc.cores = min(mc.cores, ncol(X))
 
     if(testing) X = X[400:408,]
 
-    stopifnot(nrow(covs) %% ncol(X) == 0)
-    n_each = nrow(covs) / ncol(X)
+    rnames = gsub("-|:| ", ".", as.character(rownames(X)))
+    rownames(X) = rnames
+
+    # 69 samples
+    n_samples = length(unique(covs$id))
+
     # need this for when X_locs is not specified since we never readi
     # in the array in python
-    rownames(X) = gsub("-|:| ", ".", as.character(rownames(X)))
-    rnames = rownames(X)
 
     # get a + b + c from y ~ a + b + x
     rhs = as.character(formula)[length(as.character(formula))]
     lhs = as.character(formula)[2]
     irows = 1:nrow(X)
-    stopifnot(n_each > 1)
 
-    results = mclapply(irows, function(irow){
-        row = rep(t(X[irow,]), each=n_each)
-        covs2 = covs # make a copy so we dont end up with huge covs
-        # add the expression column to the dataframe.
-        covs2[,rnames[irow]] = row
-        sformula = sprintf("%s ~ %s + %s", lhs, rnames[irow], rhs)
-        # this doesnt work!!
-        #sformula = sprintf("%s ~ %s + %s", rnames[irow], lhs, rhs)
+    ires = mclapply(1:nrow(X), function(ic){
+        covs2 = covs
+        probe_name = rnames[ic]
+        Xs = rep(t(X[ic,]), each=nrow(covs) / n_samples)
+        covs2[,probe_name] = Xs
+
+        sformula = sprintf("%s ~ %s + %s", lhs, probe_name, rhs)
         res = try(clust.lm(covs2, as.formula(sformula),
-                           gee.corstr=gee.corstr, ...), silent=FALSE)
-
-        #res.df[irow,1:4] = c(res[1], res[2], res[3], rnames[irow])
+                       gee.corstr=gee.corstr, ...), silent=FALSE)
+        res = list(covariate=res[1], p=res[2], coef=res[3])
         if(!inherits(res, "try-error")){
-            if(is.na(res[2])){ stop(res) }
-            return(list(covariate=res[1], p=res[2], coef=res[3],
-                              X=rnames[irow], model=sformula))
+            res[['model']] = sformula
+            res[['X']] = probe_name
+            if(is.na(res$p)){ stop(res) }
         }else{
-            return(list(covariate="error", p=NaN, coef=NaN, X=rnames[irow],
-                              model=sformula))
+            res = list(covariate="error", p=NaN, coef=NaN, X=probe_name, model=sformula)
         }
-
-    }, mc.cores=mc.cores)
-    results = rbindlist(results)
-    rownames(results) = results$X
-    results
+        res
+    }, mc.cores=mc.cores) 
+    ires = rbindlist(ires)
+    rownames(ires) = rnames
+    ires
 }
+
+#covs = read.csv('combined_df.csv', row.names=1)
+#X = 'expr.tst.txt'
+#print(fclust.lm.X(covs, methylation ~ disease + (1|CpG), X))
+
 
 cprint = function(...) write(..., stdout())
 
