@@ -30,8 +30,7 @@ def rcall(covs, model, X=None, kwargs=None):
                 % (model, kwargs_str))
         vals = r['a']
         ret = dict(covariate=vals[0], p=float(vals[1]), model=model)
-        if len(vals) > 2:
-            ret['coef'] = float(vals[2])
+        ret['coef'] = float(vals[2])
         ret.update(kwargs)
         return ret
     else:

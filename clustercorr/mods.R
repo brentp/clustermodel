@@ -264,7 +264,7 @@ fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, test
     rhs = as.character(formula)[length(as.character(formula))]
     lhs = as.character(formula)[2]
     irows = 1:nrow(X)
-    stopifnot(n_each > 1)
+    stopifnot(n_each >= 1)
 
     results = mclapply(irows, function(irow){
         row = rep(t(X[irow,]), each=n_each)
