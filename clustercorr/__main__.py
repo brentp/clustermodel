@@ -120,7 +120,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         X_probes = set(X.index)
 
     fh = tempfile.NamedTemporaryFile(delete=True)
-    for clusters in groups_of(400 if X is None else 1, cluster_gen):
+    for clusters in groups_of(600 if X is None else 1, cluster_gen):
 
         if not X_locs is None:
             fh.seek(0)
