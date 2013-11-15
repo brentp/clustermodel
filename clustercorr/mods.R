@@ -35,6 +35,8 @@ stouffer_liptak = function(pvalues, sigma, lower.tail=TRUE){
 stouffer_liptak.run = function(covs, meth, formula){
     # TODO: what if missing data in covariates.
     covs$methylation = 1 # 
+    sigma = cor(meth, method="spearman")
+    meth = t(meth)
 
     mod = model.matrix(formula, covs)
     covariate = colnames(mod)[1 + as.integer(colnames(mod)[1] == "(Intercept)")]
@@ -44,9 +46,6 @@ stouffer_liptak.run = function(covs, meth, formula){
     pvals = topTable(fit, coef=covariate)[,"P.Value"]
     beta.ave = sum(beta.orig) / length(beta.orig)
 
-    #sigma = cor(t(meth), method="spearman")
-    #s = stouffer_liptak(pvals, sigma)
-    sigma = cor(t(meth), method="pearson")
     p = stouffer_liptak(pvals, sigma)
     return(c(covariate, p$p, beta.ave))
 }
@@ -188,12 +187,17 @@ long.covs = function(covs, meth){
 }
 
 
-clust.lm = function(covs, formula, gee.corstr=NULL, gee.clustervar=NULL, limma.block=NULL, bumping=FALSE, liptak=FALSE, skat=FALSE){
+clust.lm = function(covs, formula, meth=NULL,
+                    gee.corstr=NULL, gee.clustervar=NULL,
+                    limma.block=NULL, bumping=FALSE, liptak=FALSE, skat=FALSE){
+
     formula = as.formula(formula)
     stopifnot(is.null(gee.corstr) || is.null(limma.block))
 
     # we assume there is one extra column for each CpG
-    meth = as.matrix(covs[,grep("CpG__", colnames(covs), fixed=TRUE)])
+    if(is.null(meth)){
+        meth = as.matrix(covs[,grep("CpG__", colnames(covs), fixed=TRUE)])
+    }
     rownames(meth) = rownames(covs)
 
     if(bumping){ # wide
@@ -203,8 +207,9 @@ clust.lm = function(covs, formula, gee.corstr=NULL, gee.clustervar=NULL, limma.b
         return(skat.run(covs, meth, formula))
     }
     if(liptak){ # wide
-        return(stouffer_liptak.run(covs, t(meth), formula))
+        return(stouffer_liptak.run(covs, meth, formula))
     }
+
     ###########################################
     # GEE and mixed models require long format.
     ###########################################
@@ -228,26 +233,44 @@ clust.lm = function(covs, formula, gee.corstr=NULL, gee.clustervar=NULL, limma.b
 
 }
 
+
+
+fclust.lm = function(covs, formula, gee.corstr=NULL, ..., mc.cores=4){
+
+    if(is.character(covs)) covs = read.csv(covs)
+    if(!"cluster_set" %in% colnames(covs)){
+        res = (clust.lm(covs, formula, gee.corstr=gee.corstr, ...))
+        return(data.frame(list(covariate=res[1], p=res[2], coef=res[3])))
+    }
+    suppressPackageStartupMessages(library('data.table', quietly=TRUE))
+    suppressPackageStartupMessages(library('parallel', quietly=TRUE))
+
+    cluster_ids = covs$cluster_set[!duplicated(covs$cluster_set)]
+    results = mclapply(cluster_ids, function(cs){
+        res = clust.lm(covs[covs$cluster_set == cs,], formula, gee.corstr=gee.corstr, ...)
+        list(covariate=res[1], p=res[2], coef=res[3], cluster_id=cs)
+    }, mc.cores=mc.cores)
+    results = rbindlist(results)
+    rownames(results) = cluster_ids
+    results
+}
+
 if(FALSE){
     covs = read.csv('covs.wide.txt')
     #print(clust.lm(covs, methylation ~ gene.E + disease, bumping=TRUE))
-    print(clust.lm(covs, methylation ~ gene.E + disease + (1|id) + (1|CpG)))
+    print(fclust.lm(covs, methylation ~ gene.E + disease + (1|id) + (1|CpG)))
     print(clust.lm(covs, methylation ~ gene.E + disease + (1|id)))
     #print(clust.lm(covs, methylation ~ gene.E, gee.clustervar="id", gee.corstr="ex"))
     print(clust.lm(covs, methylation ~ gene.E, gee.clustervar="id", gee.corstr="ex"))
     print(clust.lm(covs, methylation ~ gene.E, gee.clustervar="id", gee.corstr="ar"))
+    print('liptak')
     print(clust.lm(covs, methylation ~ gene.E, liptak=TRUE))
+    print('bumping')
     print(clust.lm(covs, methylation ~ gene.E, bumping=TRUE))
-    print(clust.lm(covs, disease ~ gene.E, skat=TRUE))
+    #print(clust.lm(covs, disease ~ gene.E, skat=TRUE))
     #print(clust.lm(covs, methylation ~ gene.E, gee.clustervar="CpG", gee.corstr="un"))
 }
 
-
-fclust.lm = function(covs, formula, gee.corstr=NULL, ...){
-    if(is.character(covs)) covs = read.csv(covs)
-
-    return(clust.lm(covs, formula, gee.corstr=gee.corstr, ...))
-}
 
 fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, testing=FALSE){
     library(parallel)
@@ -303,12 +326,15 @@ fclust.lm.X = function(covs, formula, X, gee.corstr=NULL, ..., mc.cores=12, test
 cprint = function(...) write(..., stdout())
 
 test_X = function(){
-    covs = "clustercorr/tests/example-long.csv"
+    covs = "clustercorr/tests/example-wide.csv"
+    covs = "covs.wide.multi.csv"
     X = 'clustercorr/tests/example-expression.txt.gz'
 
     cprint("\nmixed-effects model")
     formula = methylation ~ disease + (1|id) + (1|CpG)
     df = fclust.lm.X(covs, formula, X, testing=TRUE)
+    write.csv(df, 'Xout.csv')
+    stop()
     print(head(df[order(as.numeric(df$p)),], n=5))
 
     cprint("\nGEE")
@@ -332,12 +358,13 @@ test_X = function(){
     probe = "A_33_P3403576"
     X = read.delim(gzfile(X), row.names=1, nrows=408)
     covs = read.csv(covs)
-    covs = covs[covs$CpG == covs$CpG[1],]
+    #covs = covs[covs$CpG == covs$CpG[1],]
     covs$X = t(X[probe,])
-
-    cprint(paste0("\n", probe))
-    print(summary(lm(methylation ~ X + disease, covs))$coefficients)
-    print(summary(lm(X ~ methylation + disease, covs))$coefficients)
+    for(cidx in grep("CpG__", colnames(covs), fixed=TRUE)){
+        covs$methylation = covs[,cidx]
+        cprint(paste0("\n", probe))
+        print(summary(lm(methylation ~ X + disease, covs))$coefficients)
+    }
 
 }
-# test_X()
+test_X()
