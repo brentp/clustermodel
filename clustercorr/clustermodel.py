@@ -116,6 +116,7 @@ def clustered_model(cov_df, cluster_df, model, X=None, gee_args=(), liptak=False
     """
 
     combined_df = cov_cluster_setup(cov_df, cluster_df, outlier_sds)
+    #combined_df.to_csv('clustercorr/tests/example-wide.csv')
     return clustered_model_frame(combined_df, model, X, gee_args, liptak,
                                  bumping, skat)
 
