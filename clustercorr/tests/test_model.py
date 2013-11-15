@@ -9,7 +9,7 @@ HERE = op.dirname(__file__)
 
 def test_model_frame():
 
-    fname = op.join(HERE, "example-long.csv")
+    fname = op.join(HERE, "example-wide.csv")
 
     for kwargs in ({'gee_args': ('ar', 'id')},
                    {'gee_args': ('ex', 'CpG')},
@@ -25,7 +25,7 @@ def test_model_frame():
 
 def test_model_frame_X():
 
-    fname = op.join(HERE, "example-long.csv")
+    fname = op.join(HERE, "example-wide.csv")
     X = op.join(HERE, "example-expression.txt.gz")
 
     # get small subset for test
@@ -86,13 +86,13 @@ def test_clustered_model():
         for i in range(1, 6)])
     meth.columns = list(covs.index)
 
-
-    model = "methylation ~ disease + age + (1|id)"
+    model = "methylation ~ disease + (1|id)"
 
     r = clustered_model(covs, meth, model)
     yield check_clustered, r, model
 
-    exp = meth.copy()
+    np.random.seed(42)
+    exp = meth.copy() * 1.15 + np.random.random(meth.shape)
     for bad_name in ("", "-", " "):
         with tempfile.NamedTemporaryFile(delete=True) as fh:
             exp.index = ['gene' + bad_name + l for l in 'ABCDE']

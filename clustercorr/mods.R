@@ -20,7 +20,7 @@
 suppressPackageStartupMessages(library('limma', quietly=TRUE))
 suppressPackageStartupMessages(library('reshape2', quietly=TRUE))
 
-options(showWarnCalls=FALSE, warn=-1)
+#options(showWarnCalls=FALSE, warn=-1)
 
 stouffer_liptak = function(pvalues, sigma, lower.tail=TRUE){
     qvalues = qnorm(pvalues, mean=0, sd=1, lower.tail=lower.tail)
