@@ -11,12 +11,16 @@ r = R(max_len=5e7, return_err=False)
 r('source("%s/mods.R")' % os.path.dirname(__file__))
 
 
-def rcall(cov, meths, model, X=None, kwargs=None, fh=open('s.bin', 'w')):
+def rcall(cov, meths, model, X=None, kwargs=None,
+        fh=tempfile.NamedTemoraryFile(suffix='.cluster.bin')):
     """
     internal function to call R and return the result
     """
     if kwargs is None: kwargs = {}
 
+    # send the methylation arrays via binary. this is
+    # much faster than relying on pyper to send large
+    # matrices.
     send_arrays(meths, fh)
     r('meths = read.bin("%s")' % fh.name)
 

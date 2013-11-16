@@ -147,7 +147,6 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             # we send do the extraction directly in R so the only data
             # sent is the name of the probes. Then we take the subset
             # inside R
-            print >>sys.stderr, len(probes)
             r['XXprobes'] = probes
             Xvar = 'Xfull[XXprobes,,drop=FALSE]'
         elif X is not None:
