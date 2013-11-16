@@ -12,7 +12,7 @@ r('source("%s/mods.R")' % os.path.dirname(__file__))
 
 
 def rcall(cov, meths, model, X=None, kwargs=None,
-        fh=tempfile.NamedTemoraryFile(suffix='.cluster.bin')):
+        bin_fh=tempfile.NamedTemporaryFile(suffix='.cluster.bin')):
     """
     internal function to call R and return the result
     """
@@ -20,11 +20,12 @@ def rcall(cov, meths, model, X=None, kwargs=None,
 
     # send the methylation arrays via binary. this is
     # much faster than relying on pyper to send large
-    # matrices.
-    send_arrays(meths, fh)
-    r('meths = read.bin("%s")' % fh.name)
+    # matrices. send_arrays does a seek(0).
+    send_arrays(meths, bin_fh.file)
+    r('meths = read.bin("%s")' % bin_fh.name)
 
     # faster to use csv than to use pyper's conversion
+    # TODO: only send this once.
     if not isinstance(cov, str):
         fh = tempfile.NamedTemporaryFile()
         cov.to_csv(fh, index=False)
