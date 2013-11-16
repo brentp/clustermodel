@@ -72,8 +72,8 @@ permute.residuals = function(mat, mod, mod0, iterations=100, p_samples=1, mc.cor
         icoef = coefficients(ifit)[,coef.name]
         w = ifit$sigma
         # get names as integer positions:
-        names(icoef) = gsub(".*?(\\d+)$", "\\1", names(icoef), perl=T)
-        names(w) = gsub(".*?(\\d+)$", "\\1", names(w), perl=T)
+        names(icoef) = 1:length(icoef)
+        names(w) = 1:length(w)
         sum.lowess(icoef, w)
     }, mc.cores=mc.cores)
         
@@ -108,8 +108,8 @@ bumping.run = function(covs, meth, formula, n_sims=100){
 
     icoef = coefficients(fit)[,covariate]
     # get names as integer positions:
-    names(icoef) = gsub(".*?(\\d+)$", "\\1", names(icoef), perl=T)
-    names(w) = gsub(".*?(\\d+)$", "\\1", names(w), perl=T)
+    names(icoef) = 1:length(icoef)
+    names(w) = 1:length(w)
     beta_sum = sum.lowess(icoef, w)
 
     raw_beta_sum = sum(coefficients(fit)[,covariate])
@@ -252,7 +252,7 @@ fclust.lm = function(covs, meths, formula, gee.corstr=NULL, ..., mc.cores=4){
 
     if(is.matrix(meths) || is.data.frame(meths)){
         res = (clust.lm(covs, meths, formula, gee.corstr=gee.corstr, ...))
-        return(data.frame(list(covariate=res[1], p=res[2], coef=res[3])))
+        return(data.frame(covariate=res[1], p=res[2], coef=res[3]))
     }
 
     suppressPackageStartupMessages(library('data.table', quietly=TRUE))

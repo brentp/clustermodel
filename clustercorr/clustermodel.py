@@ -41,6 +41,7 @@ def rcall(cov, meths, model, X=None, kwargs=None,
                 % (model, kwargs_str))
         df = r['a']
         df['model'] = model
+        df['coef'] = df['coef'].astype(float)
         return df
     else:
         import multiprocessing
@@ -51,6 +52,7 @@ def rcall(cov, meths, model, X=None, kwargs=None,
         r("a <- NA; a <- fclust.lm.X(cov, meths, '%s', %s, %s)"
                 % (model, X, kwargs_str))
         df = r['a']
+        df['coef'] = df['coef'].astype(float)
         return df
 
 def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=False,
@@ -125,7 +127,8 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=Fals
     # TODO: outliers
     cov_df['id'] = np.arange(cov_df.shape[0]).astype(int)
     cov = cov_df
-    meths = cluster_dfs
+    meths = cluster_dfs if not isinstance(cluster_dfs, pd.DataFrame) \
+                        else [cluster_dfs]
     if "|" in model:
         assert not any((skat, liptak, bumping, gee_args))
         return rcall(cov, meths, model, X)
@@ -137,9 +140,9 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=Fals
     elif bumping:
         return rcall(cov, meths, model, X, dict(bumping=True))
     elif gee_args:
-        corr, cov = gee_args
+        corr, col = gee_args
         assert corr[:2] in ('ex', 'ar', 'in', 'un')
-        return rcall(cov, meths, model, X, {"gee.corstr": corr, "gee.clustervar": cov})
+        return rcall(cov, meths, model, X, {"gee.corstr": corr, "gee.clustervar": col})
     else:
         raise Exception('must specify one of skat/liptak/bumping/gee_args'
                         ' or specify a mixed-effect model in lme4 syntax')

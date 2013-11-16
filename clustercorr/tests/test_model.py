@@ -1,76 +1,40 @@
 from nose.tools import assert_raises
-from clustercorr.clustermodel import clustered_model_frame, clustered_model
+from clustercorr.clustermodel import clustered_model
 from clustercorr.__main__ import fix_name
 import os.path as op
 import pandas as pd
 import tempfile
+import sys
+import numpy as np
 
 HERE = op.dirname(__file__)
 
-def test_model_frame():
+def test_model():
 
-    fname = op.join(HERE, "example-wide.csv")
+    meth = pd.read_csv(op.join(HERE, "example-meth.csv"), index_col=0).T
+    covs = pd.read_table(op.join(HERE, "example-covariates.txt"))
 
     for kwargs in ({'gee_args': ('ar', 'id')},
                    {'gee_args': ('ex', 'CpG')},
                    {'liptak': True},
-                   {'bumping': True},
-                   ):
+                   {'bumping': True},):
 
-        yield check_clustered_model_frame, fname, "methylation ~ disease", kwargs
+        yield check_clustered_model, covs, meth, "methylation ~ disease", kwargs
 
     for random_effects in ("(1|CpG)", "(1|id)", "(1|id) + (1|CpG)"):
-        yield (check_clustered_model_frame, fname,
+        yield (check_clustered_model, covs, meth,
                 "methylation ~ disease + " + random_effects, {})
 
-def test_model_frame_X():
+def check_clustered_model(covs, meth, model, kwargs):
 
-    fname = op.join(HERE, "example-wide.csv")
-    X = op.join(HERE, "example-expression.txt.gz")
-
-    # get small subset for test
-    df = pd.read_table('clustercorr/tests/example-expression.txt.gz',
-             compression='gzip', index_col=0)
-
-    with tempfile.NamedTemporaryFile() as fh:
-        sub = df.ix[:10, :]
-        sub.to_csv(fh, index=True, index_label="probe",
-                            sep="\t", quote=False)
-
-        fh.flush()
-        res = clustered_model_frame(fname,
-                "methylation ~ disease + (1|CpG)", X=fh.name)
-
-        assert (res.index == sub.index).all()
-        for col in "covariate p coef X model".split():
-            col in res.columns, res.columns
-
-
-
-def check_clustered_model_frame(fname, model, kwargs):
-
-    res = clustered_model_frame(fname, model, **kwargs)
+    res = clustered_model(covs, meth, model, **kwargs)
 
     #{'p': 0.153760092338262, 'model': 'methylation ~ disease', 'covariate':
     #        'diseaseTRUE', 'liptak': True, 'coef': 0.125455808080808}
     for k in 'p model covariate coef'.split():
         assert k in res, res
 
-    if 'liptak' in kwargs:
-        assert res['liptak']
-    elif 'gee_args' in kwargs:
-        assert 'gee.corstr' in res, res
-        assert not 'liptak' in res, res
-        assert not 'bumping' in res, res
-
-    elif 'bumping' in res:
-        assert res['bumping']
-        assert not 'liptak' in res, res
-
-    else: # mixed model
-        assert "|" in res['model']
-        assert not 'liptak' in res, res
-        assert not 'bumping' in res, res
+    assert ("|" in model) == ("|" in res['model'][0]), (model, res['model'][0])
 
 
 def test_clustered_model():
@@ -84,6 +48,7 @@ def test_clustered_model():
 
     meth = pd.DataFrame(np.random.randn(5, 20), index = ["chr1:%i" % (100 * i)
         for i in range(1, 6)])
+
     meth.columns = list(covs.index)
 
     model = "methylation ~ disease + (1|id)"
@@ -99,15 +64,15 @@ def test_clustered_model():
             exp.to_csv(fh.name, sep="\t", quote=False, index=True,
                     index_label="probe")
             fh.flush()
-            r = clustered_model(covs, meth, model, X=fh.name)
+            r = clustered_model(covs, meth, model, X="'%s'" % fh.name)
             yield check_clustered_df, r, model, exp
 
 
 def check_clustered(r, model):
     assert 'p' in r
     assert 'coef' in r
-    assert isinstance(r['coef'], float)
-    assert r['model'] == model
+    assert isinstance(r['coef'][0], float), (r['coef'], r['coef'][0])
+    assert r['model'][0] == model, (model, r['model'][0])
 
 
 def check_clustered_df(df, model, exp):
