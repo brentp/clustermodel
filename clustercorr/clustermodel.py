@@ -43,7 +43,7 @@ def rcall(cov, meths, model, X=None, kwargs=None, fh=open('s.bin', 'w')):
         kwargs['mc.cores'] = mc_cores
         kwargs_str = ", ".join("%s='%s'" % (k, v)
                                 for k, v in kwargs.iteritems())
-        r("a <- NA; a <- fclust.lm.X(cov, meths, '%s', '%s', %s)"
+        r("a <- NA; a <- fclust.lm.X(cov, meths, '%s', %s, %s)"
                 % (model, X, kwargs_str))
         df = r['a']
         return df
@@ -93,7 +93,8 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=Fals
 
         X - a file with the same samples as cov_df and rows of expression
             data. If present, each DMR will be tested against each row in
-            this file--this is computationally intensive!!
+            this file--this is computationally intensive!! Or a data.frame
+            or matrix already defined in R.
 
         gee_args - a 2-tuple of arguments to R's geepack::geeglm().
                    1) the corstr (one of "ex", "in", "ar")
@@ -116,39 +117,10 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=Fals
                methylation better describes the dependent variable.
     """
 
-    #combined_df = cov_cluster_setup(cov_df, cluster_df, outlier_sds)
     # TODO: outliers
     cov_df['id'] = np.arange(cov_df.shape[0]).astype(int)
-    #combined_df.to_csv('clustercorr/tests/example-wide.csv')
-    return clustered_model_frame(cov_df, cluster_dfs, model, X, gee_args, liptak,
-                                 bumping, skat)
-
-def set_outlier_nan(cluster_df, n_sds):
-    """
-    take cluster dataframe and set to nan
-    any values where that are > n_sds standard-deviations away
-    from the mean for that probe
-    """
-    #imean, isd = cluster_df.mean(axis=1), cluster_df.std(axis=1,
-    #        skipna=True)
-
-    for probe in cluster_df.index:
-        row = cluster_df.ix[probe, :]
-        rown = row[~np.isnan(row)]
-        m, s = rown.mean(), rown.std()
-        rng = (m - (n_sds * s)), (m + (n_sds * s))
-        row[((row < rng[0]) | (row > rng[1]))] = np.nan
-
-
-def clustered_model_frame(cov, meths, model, X=None, gee_args=(), liptak=False,
-        bumping=False, skat=False):
-    """
-    the arguments to this function are identical to clustered_model()
-    except that fname_df is the file-name of a dataframe.to_csv()
-    this allows calling a number of methods without writing to a new
-    file each time
-    """
-
+    cov = cov_df
+    meths = cluster_dfs
     if "|" in model:
         assert not any((skat, liptak, bumping, gee_args))
         return rcall(cov, meths, model, X)
@@ -166,3 +138,19 @@ def clustered_model_frame(cov, meths, model, X=None, gee_args=(), liptak=False,
     else:
         raise Exception('must specify one of skat/liptak/bumping/gee_args'
                         ' or specify a mixed-effect model in lme4 syntax')
+
+def set_outlier_nan(cluster_df, n_sds):
+    """
+    take cluster dataframe and set to nan
+    any values where that are > n_sds standard-deviations away
+    from the mean for that probe
+    """
+    #imean, isd = cluster_df.mean(axis=1), cluster_df.std(axis=1,
+    #        skipna=True)
+
+    for probe in cluster_df.index:
+        row = cluster_df.ix[probe, :]
+        rown = row[~np.isnan(row)]
+        m, s = rown.mean(), rown.std()
+        rng = (m - (n_sds * s)), (m + (n_sds * s))
+        row[((row < rng[0]) | (row > rng[1]))] = np.nan

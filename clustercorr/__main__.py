@@ -9,6 +9,7 @@ import pandas as pd
 from aclust import aclust
 from .plotting import plot_dmr, plot_hbar, plot_continuous
 from clustercorr import feature_gen, cluster_to_dataframe, clustered_model
+from clustercorr.clustermodel import r
 
 xopen = lambda f: gzip.open(f) if f.endswith('.gz') else open(f)
 
@@ -30,7 +31,8 @@ def run_model(clusters, covs, model, X, outlier_sds, liptak, bumping, gee_args,
                 outlier_sds=outlier_sds)
     res['chrom'], res['start'], res['end'], res['n_probes'] = ("CHR", 1, 1, 0)
     if "cluster_id" in res.columns:
-        for i, c in enumerate(clusters):
+        # start at 1 because we using 1:nclusters in R
+        for i, c in enumerate(clusters, start=1):
             res.ix[res.cluster_id == i, 'chrom'] = c[0].group
             res.ix[res.cluster_id == i, 'start'] = c[0].start
             res.ix[res.cluster_id == i, 'end'] = c[-1].end
@@ -109,23 +111,29 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
 
     covs = pd.read_table(fcovs, index_col=0, sep=sep)
     covariate = model.split("~")[1].split("+")[0].strip()
-    X_file = X
+    Xvar = X
 
     # read expression into memory and pull out subsets as needed.
     if not X_locs is None:
         # change names so R formulas are OK
         X_locs = pd.read_table(xopen(X_locs), index_col="probe")
         X_locs.index = [fix_name(xi) for xi in X_locs.index]
-        X = pd.read_table(xopen(X), index_col=0)
-        X.index = [fix_name(xi) for xi in X.index]
-        X_probes = set(X.index)
-        fh = tempfile.NamedTemporaryFile(delete=True)
 
-    for clusters in groups_of(400 if X is None else 5, cluster_gen):
+        # just reading in the first column to make sure we're using probes that
+        # exist in the X matrix
+        Xi = pd.read_table(xopen(X), index_col=0, usecols=[0]).index
+        X_probes = set([fix_name(xi) for xi in Xi])
+        # jsut read in once per run in R, then subset by probes
+        r('Xfull = readX("%s")' % X)
+
+    for clusters in groups_of(400 if X is None else 20, cluster_gen):
 
         if not X_locs is None:
-            fh.seek(0)
             probes = []
+            # here, we take any X probe that's associated with any single
+            # cluster and test it against all clusters. This tends to work out
+            # because the clusters are sorted by location and it helps
+            # parallelization. 
             for cluster in clusters:
                 chrom = cluster[0].group
                 start, end = cluster[0].start, cluster[-1].end
@@ -135,12 +143,17 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
                 probes.extend([p for p in probe_locs.index if p in X_probes])
             if len(probes) == 0: continue
             probes = OrderedDict.fromkeys(probes).keys()
-            X.ix[probes, :].to_csv(fh.name, sep="\t", index=True,
-                                   index_label="probe", float_format="%.4f")
-            fh.flush()
-            X_file = fh.name
 
-        res = run_model(clusters, covs, model, X_file, outlier_sds, liptak,
+            # we send do the extraction directly in R so the only data
+            # sent is the name of the probes. Then we take the subset
+            # inside R
+            print >>sys.stderr, len(probes)
+            r['XXprobes'] = probes
+            Xvar = 'Xfull[XXprobes,,drop=FALSE]'
+        elif X is not None:
+            Xvar = 'Xfull'
+
+        res = run_model(clusters, covs, model, Xvar, outlier_sds, liptak,
                         bumping, gee_args, skat)
 
         for i, row in res.iterrows():

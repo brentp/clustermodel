@@ -286,31 +286,34 @@ if(FALSE){
 }
 
 
-fclust.lm.X = function(covs, meth, formula, X, gee.corstr=NULL, ..., mc.cores=4, testing=FALSE, x_probes=NA){
+readX = function(fname){
+    X = as.matrix(read.delim(gzfile(fname), row.names=1))
+    rownames(X) = gsub("-|:| ", ".", as.character(rownames(X)), perl=TRUE)
+    X
+} 
+
+fclust.lm.X = function(covs, meth, formula, X, gee.corstr=NULL, ..., mc.cores=4, testing=FALSE){
     library(parallel)
     library(data.table)
     formula = as.formula(formula)
     if(is.character(covs)) covs = read.csv(covs)
 
+    # if calling repeatedly, should be subsets of the expression matrix that are close to
+    # (presumably) the methylation matrix being tested.
     if(is.character(X)){
-        X = read.delim(gzfile(X), row.names=1)
+        X = readX(X)
     }
 
-    # can keep X in memory and just send probes to pull
-    if(!is.na(x_probes)){
-        X = X[x_probes,]
-    }
     mc.cores = min(mc.cores, ncol(X))
 
     if(testing) X = X[400:408,]
+    rnames = rownames(X)
 
     stopifnot(nrow(covs) %% ncol(X) == 0)
     n_each = nrow(covs) / ncol(X)
 
     # need this for when X_locs is not specified since we never readi
     # in the array in python
-    rownames(X) = gsub("-|:| ", ".", as.character(rownames(X)))
-    rnames = rownames(X)
 
     # get a + b + c from y ~ a + b + x
     rhs = as.character(formula)[length(as.character(formula))]
@@ -324,10 +327,9 @@ fclust.lm.X = function(covs, meth, formula, X, gee.corstr=NULL, ..., mc.cores=4,
         # add the expression column to the dataframe.
         covs2[,rnames[irow]] = X.row
         sformula = sprintf("%s ~ %s + %s", lhs, rnames[irow], rhs)
-        # this doesnt work!!
-        #sformula = sprintf("%s ~ %s + %s", rnames[irow], lhs, rhs)
-        res = try(fclust.lm(covs2, meth, as.formula(sformula),
-                           gee.corstr=gee.corstr, ..., mc.cores=1), silent=FALSE)
+        # call with 1 core since we're already parallel here.
+        res = fclust.lm(covs2, meth, as.formula(sformula),
+                           gee.corstr=gee.corstr, ..., mc.cores=1)
         res$X = rnames[irow]
         res$model = sformula
         res
