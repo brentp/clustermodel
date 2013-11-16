@@ -4,16 +4,21 @@ import warnings
 import numpy as np
 import pandas as pd
 from .pyper import R
+from .send_bin import send_arrays
+
 import tempfile
 r = R(max_len=5e7, return_err=False)
 r('source("%s/mods.R")' % os.path.dirname(__file__))
 
 
-def rcall(covs, model, X=None, kwargs=None):
+def rcall(covs, meths, model, X=None, kwargs=None, fh=open('s.bin', 'w')):
     """
     internal function to call R and return the result
     """
     if kwargs is None: kwargs = {}
+
+    send_arrays(meths, fh)
+    r('meths = read.bin("%s")' % fh.name)
 
     # faster to use csv than to use pyper's conversion
     if not isinstance(covs, str):
@@ -23,32 +28,29 @@ def rcall(covs, model, X=None, kwargs=None):
         covs = fh.name
 
     assert os.path.exists(covs), covs
-    r['combined_df'] = covs
+    r['covs'] = covs
     if X is None:
         kwargs_str = ", ".join("%s='%s'" % (k, v)
                                 for k, v in kwargs.iteritems())
-        r("a <- c('nan', 'nan', 'nan'); a <- fclust.lm(combined_df, '%s', %s)"
+        r("a <- c('nan', 'nan', 'nan'); a <- fclust.lm(covs, meths, '%s', %s)"
                 % (model, kwargs_str))
-        vals = r['a']
-        ret = dict(covariate=vals[0], p=float(vals[1]), model=model)
-        ret['coef'] = float(vals[2])
-        ret.update(kwargs)
-        return ret
+        df = r['a']
+        df['model'] = model
+        return df
     else:
-        if False:
-            "fclust.lm.X('%s', '%s', '%s', %s)" % (covs, model, X, kwargs_str)
-            import shutil ;shutil.copyfile(covs, "/tmp/ttt.csv")
         import multiprocessing
         mc_cores = multiprocessing.cpu_count()
+
         kwargs['mc.cores'] = mc_cores - 1
         kwargs_str = ", ".join("%s='%s'" % (k, v)
                                 for k, v in kwargs.iteritems())
-        r("a <- NA; a <- fclust.lm.X(combined_df, '%s', '%s', %s)"
+        r("a <- NA; a <- fclust.lm.X(covs, meths, '%s', '%s', %s)"
                 % (model, X, kwargs_str))
         df = r['a']
+        df['model'] = model
         return df
 
-def clustered_model(cov_df, cluster_df, model, X=None, gee_args=(), liptak=False,
+def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=False,
         bumping=False, skat=False, outlier_sds=None):
     """
     Given a cluster of (presumably) correlated CpG's. There are a number of
@@ -116,9 +118,11 @@ def clustered_model(cov_df, cluster_df, model, X=None, gee_args=(), liptak=False
                methylation better describes the dependent variable.
     """
 
-    combined_df = cov_cluster_setup(cov_df, cluster_df, outlier_sds)
+    #combined_df = cov_cluster_setup(cov_df, cluster_df, outlier_sds)
+    # TODO: outliers
+    cov_df['id'] = np.arange(cov_df.shape[0]).astype(int)
     #combined_df.to_csv('clustercorr/tests/example-wide.csv')
-    return clustered_model_frame(combined_df, model, X, gee_args, liptak,
+    return clustered_model_frame(cov_df, cluster_dfs, model, X, gee_args, liptak,
                                  bumping, skat)
 
 def set_outlier_nan(cluster_df, n_sds):
@@ -137,29 +141,8 @@ def set_outlier_nan(cluster_df, n_sds):
         rng = (m - (n_sds * s)), (m + (n_sds * s))
         row[((row < rng[0]) | (row > rng[1]))] = np.nan
 
-def cov_cluster_setup(cov_df, cluster_df, outlier_sds=None):
-    """
-    turn two dataframes, one for methylation and 1 for covariates into a
-    single, long dataframe.
-    (some) index from cov_df must match columns from cluster_df
-    returns a file-handle of the merged dataframe.
-    """
-    if outlier_sds:
-        set_outlier_nan(cluster_df, n_sds=outlier_sds)
 
-    methylation = cluster_df.T
-    if not set(cov_df.index).intersection(methylation.index):
-        raise Exception("must share cov_df.index, cluster_df.columns")
-
-    n_probes = cluster_df.shape[1]
-    combined_df = cov_df.copy()
-    combined_df['id'] = np.arange(cov_df.shape[0]).astype(int)
-    for c in methylation.columns:
-        combined_df['CpG__' + str(c)] = methylation[c]
-
-    return combined_df
-
-def clustered_model_frame(combined_df, model, X=None, gee_args=(), liptak=False,
+def clustered_model_frame(covs, meths, model, X=None, gee_args=(), liptak=False,
         bumping=False, skat=False):
     """
     the arguments to this function are identical to clustered_model()
@@ -170,18 +153,18 @@ def clustered_model_frame(combined_df, model, X=None, gee_args=(), liptak=False,
 
     if "|" in model:
         assert not any((skat, liptak, bumping, gee_args))
-        return rcall(combined_df, model, X)
+        return rcall(covs, meths, model, X)
 
     if skat:
-        return rcall(combined_df, model, X, dict(skat=True))
+        return rcall(covs, meths, model, X, dict(skat=True))
     elif liptak:
-        return rcall(combined_df, model, X, dict(liptak=True))
+        return rcall(covs, meths, model, X, dict(liptak=True))
     elif bumping:
-        return rcall(combined_df, model, X, dict(bumping=True))
+        return rcall(covs, meths, model, X, dict(bumping=True))
     elif gee_args:
         corr, cov = gee_args
         assert corr[:2] in ('ex', 'ar', 'in', 'un')
-        return rcall(combined_df, model, X, {"gee.corstr": corr, "gee.clustervar": cov})
+        return rcall(covs, meths, model, X, {"gee.corstr": corr, "gee.clustervar": cov})
     else:
         raise Exception('must specify one of skat/liptak/bumping/gee_args'
                         ' or specify a mixed-effect model in lme4 syntax')

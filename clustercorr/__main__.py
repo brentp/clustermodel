@@ -22,17 +22,25 @@ def run_model(clusters, covs, model, X, outlier_sds, liptak, bumping, gee_args,
         skat):
     # we turn the cluster list into a pandas dataframe with columns
     # of samples and rows of probes. these must match our covariates
-HERE
-    cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
-
+    cluster_dfs = [cluster_to_dataframe(cluster, columns=covs.index)
+            for cluster in clusters]
         # now we want to test a model on our clustered dataset.
-    res = clustered_model(covs, cluster_df, model, X=X, gee_args=gee_args,
+    res = clustered_model(covs, cluster_dfs, model, X=X, gee_args=gee_args,
                 liptak=liptak, bumping=bumping, skat=skat,
                 outlier_sds=outlier_sds)
-    res['chrom'] = cluster[0].group
-    res['start'] = cluster[0].start
-    res['end'] = cluster[-1].end
-    res['n_probes'] = len(cluster)
+    res['chrom'], res['start'], res['end'], res['n_probes'] = ("CHR", 1, 1, 0)
+    if "cluster_id" in res.columns:
+        for i, c in enumerate(clusters):
+            res.ix[res.cluster_id == i, 'chrom'] = c[0].group
+            res.ix[res.cluster_id == i, 'start'] = c[0].start
+            res.ix[res.cluster_id == i, 'end'] = c[-1].end
+            res.ix[res.cluster_id == i, 'n_probes'] = len(c)
+    else:
+        assert len(clusters) == 1
+        res['chrom'] = clusters[0][0].group
+        res['start'] = clusters[0][0].start
+        res['end'] = clusters[-1][-1].end
+        res['n_probes'] = len(clusters[0])
     return res
 
 def distX(dmr, expr):
@@ -113,7 +121,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         X_probes = set(X.index)
         fh = tempfile.NamedTemporaryFile(delete=True)
 
-    for clusters in groups_of(20, cluster_gen):
+    for clusters in groups_of(400 if X is None else 5, cluster_gen):
 
         if not X_locs is None:
             fh.seek(0)
@@ -135,21 +143,15 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         res = run_model(clusters, covs, model, X_file, outlier_sds, liptak,
                         bumping, gee_args, skat)
 
-        if not X is None:
-            # got a pandas dataframe
-            df = res
-            for i, row in df.iterrows():
-                row = dict(row)
-                if not X_locs is None:
-                    distX(row, dict(probe_locs.ix[row['X'], :]))
-                yield row
+        for i, row in res.iterrows():
+            row = dict(row)
+            if X_locs is not None:
+                distX(row, dict(X_locs.ix[row['X'], :]))
+            yield row
+            if row['p'] < 1e-4 and png_path:
+                cluster_df = cluster_to_dataframe(clusters[i], columns=covs.index)
+                plot_res(row, png_path, covs, covariate, cluster_df)
 
-            continue
-
-        if res['p'] < 1e-4 and png_path:
-            cluster_df = cluster_to_dataframe(cluster, columns=covs.index)
-            plot_res(res, png_path, covs, covariate, cluster_df)
-        yield res
 
 
 def plot_res(res, png_path, covs, covariate, cluster_df):
