@@ -11,7 +11,7 @@ r = R(max_len=5e7, return_err=False)
 r('source("%s/mods.R")' % os.path.dirname(__file__))
 
 
-def rcall(covs, meths, model, X=None, kwargs=None, fh=open('s.bin', 'w')):
+def rcall(cov, meths, model, X=None, kwargs=None, fh=open('s.bin', 'w')):
     """
     internal function to call R and return the result
     """
@@ -21,18 +21,18 @@ def rcall(covs, meths, model, X=None, kwargs=None, fh=open('s.bin', 'w')):
     r('meths = read.bin("%s")' % fh.name)
 
     # faster to use csv than to use pyper's conversion
-    if not isinstance(covs, str):
+    if not isinstance(cov, str):
         fh = tempfile.NamedTemporaryFile()
-        covs.to_csv(fh, index=False)
+        cov.to_csv(fh, index=False)
         fh.flush()
-        covs = fh.name
+        cov = fh.name
 
-    assert os.path.exists(covs), covs
-    r['covs'] = covs
+    assert os.path.exists(cov), cov
+    r['cov'] = cov
     if X is None:
         kwargs_str = ", ".join("%s='%s'" % (k, v)
                                 for k, v in kwargs.iteritems())
-        r("a <- c('nan', 'nan', 'nan'); a <- fclust.lm(covs, meths, '%s', %s)"
+        r("a <- c('nan', 'nan', 'nan'); a <- fclust.lm(cov, meths, '%s', %s)"
                 % (model, kwargs_str))
         df = r['a']
         df['model'] = model
@@ -40,14 +40,12 @@ def rcall(covs, meths, model, X=None, kwargs=None, fh=open('s.bin', 'w')):
     else:
         import multiprocessing
         mc_cores = multiprocessing.cpu_count()
-
-        kwargs['mc.cores'] = mc_cores - 1
+        kwargs['mc.cores'] = mc_cores
         kwargs_str = ", ".join("%s='%s'" % (k, v)
                                 for k, v in kwargs.iteritems())
-        r("a <- NA; a <- fclust.lm.X(covs, meths, '%s', '%s', %s)"
+        r("a <- NA; a <- fclust.lm.X(cov, meths, '%s', '%s', %s)"
                 % (model, X, kwargs_str))
         df = r['a']
-        df['model'] = model
         return df
 
 def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=False,
@@ -142,7 +140,7 @@ def set_outlier_nan(cluster_df, n_sds):
         row[((row < rng[0]) | (row > rng[1]))] = np.nan
 
 
-def clustered_model_frame(covs, meths, model, X=None, gee_args=(), liptak=False,
+def clustered_model_frame(cov, meths, model, X=None, gee_args=(), liptak=False,
         bumping=False, skat=False):
     """
     the arguments to this function are identical to clustered_model()
@@ -153,18 +151,18 @@ def clustered_model_frame(covs, meths, model, X=None, gee_args=(), liptak=False,
 
     if "|" in model:
         assert not any((skat, liptak, bumping, gee_args))
-        return rcall(covs, meths, model, X)
+        return rcall(cov, meths, model, X)
 
     if skat:
-        return rcall(covs, meths, model, X, dict(skat=True))
+        return rcall(cov, meths, model, X, dict(skat=True))
     elif liptak:
-        return rcall(covs, meths, model, X, dict(liptak=True))
+        return rcall(cov, meths, model, X, dict(liptak=True))
     elif bumping:
-        return rcall(covs, meths, model, X, dict(bumping=True))
+        return rcall(cov, meths, model, X, dict(bumping=True))
     elif gee_args:
         corr, cov = gee_args
         assert corr[:2] in ('ex', 'ar', 'in', 'un')
-        return rcall(covs, meths, model, X, {"gee.corstr": corr, "gee.clustervar": cov})
+        return rcall(cov, meths, model, X, {"gee.corstr": corr, "gee.clustervar": cov})
     else:
         raise Exception('must specify one of skat/liptak/bumping/gee_args'
                         ' or specify a mixed-effect model in lme4 syntax')
