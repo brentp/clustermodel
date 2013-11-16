@@ -246,6 +246,7 @@ read.bin = function(bin.file){
     l
 }
 
+
 fclust.lm = function(covs, meths, formula, gee.corstr=NULL, ..., mc.cores=4){
     if(is.character(covs)) covs = read.csv(covs)
 
@@ -285,13 +286,20 @@ if(FALSE){
 }
 
 
-fclust.lm.X = function(covs, meth, formula, X, gee.corstr=NULL, ..., mc.cores=4, testing=FALSE){
+fclust.lm.X = function(covs, meth, formula, X, gee.corstr=NULL, ..., mc.cores=4, testing=FALSE, x_probes=NA){
     library(parallel)
     library(data.table)
     formula = as.formula(formula)
     if(is.character(covs)) covs = read.csv(covs)
 
-    X = read.delim(gzfile(X), row.names=1)
+    if(is.character(X)){
+        X = read.delim(gzfile(X), row.names=1)
+    }
+
+    # can keep X in memory and just send probes to pull
+    if(!is.na(x_probes)){
+        X = X[x_probes,]
+    }
     mc.cores = min(mc.cores, ncol(X))
 
     if(testing) X = X[400:408,]
@@ -321,6 +329,7 @@ fclust.lm.X = function(covs, meth, formula, X, gee.corstr=NULL, ..., mc.cores=4,
         res = try(fclust.lm(covs2, meth, as.formula(sformula),
                            gee.corstr=gee.corstr, ..., mc.cores=1), silent=FALSE)
         res$X = rnames[irow]
+        res$model = sformula
         res
     }, mc.cores=mc.cores)
     rbindlist(results)
