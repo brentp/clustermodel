@@ -11,6 +11,10 @@ from .plotting import plot_dmr, plot_hbar, plot_continuous
 from clustercorr import feature_gen, cluster_to_dataframe, clustered_model
 from clustercorr.clustermodel import r
 
+from multiprocessing import cpu_count
+
+CPUS = cpu_count()
+
 xopen = lambda f: gzip.open(f) if f.endswith('.gz') else open(f)
 
 def is_numeric(pd_series):
@@ -112,6 +116,10 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
     covs = pd.read_table(fcovs, index_col=0, sep=sep)
     covariate = model.split("~")[1].split("+")[0].strip()
     Xvar = X
+    if X is not None:
+        # read in once in R, then subset by probes
+        r('Xfull = readX("%s")' % X)
+        Xvar = 'Xfull'
 
     # read expression into memory and pull out subsets as needed.
     if not X_locs is None:
@@ -123,10 +131,10 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         # exist in the X matrix
         Xi = pd.read_table(xopen(X), index_col=0, usecols=[0]).index
         X_probes = set([fix_name(xi) for xi in Xi])
-        # jsut read in once per run in R, then subset by probes
-        r('Xfull = readX("%s")' % X)
 
-    for clusters in groups_of(400 if X is None else 20, cluster_gen):
+    for clusters in groups_of(700 if X is None else
+                              20 if X_locs is not None
+                              else cpu_count(), cluster_gen):
 
         if not X_locs is None:
             probes = []
@@ -149,8 +157,6 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             # inside R
             r['XXprobes'] = probes
             Xvar = 'Xfull[XXprobes,,drop=FALSE]'
-        elif X is not None:
-            Xvar = 'Xfull'
 
         res = run_model(clusters, covs, model, Xvar, outlier_sds, liptak,
                         bumping, gee_args, skat)

@@ -8,7 +8,7 @@ from .send_bin import send_arrays
 
 import tempfile
 r = R(max_len=5e7, return_err=False)
-r('source("%s/mods.R")' % os.path.dirname(__file__))
+r('source("%s/clustermodel.R")' % os.path.dirname(__file__))
 
 
 def rcall(cov, meths, model, X=None, kwargs=None,
