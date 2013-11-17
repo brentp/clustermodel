@@ -322,7 +322,7 @@ fclust.lm.X = function(covs, meth, formula, X, gee.corstr=NULL, ..., mc.cores=4,
     irows = 1:nrow(X)
     stopifnot(n_each >= 1)
 
-    results = lapply(irows, function(irow){
+    results = mclapply(irows, function(irow){
         X.row = rep(t(X[irow,]), n_each)
         covs2 = covs # make a copy so we dont end up with huge covs
         # add the expression column to the dataframe.
@@ -334,7 +334,7 @@ fclust.lm.X = function(covs, meth, formula, X, gee.corstr=NULL, ..., mc.cores=4,
         res$X = rnames[irow]
         res$model = sformula
         res
-    }) #, mc.cores=mc.cores)
+    }, mc.cores=mc.cores)
     rbindlist(results)
 }
 
