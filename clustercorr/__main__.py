@@ -66,6 +66,7 @@ def distX(dmr, expr):
         if strand == "-":
             dmr['distance'] *= -1
     dmr['Xstart'], dmr['Xend'], dmr['Xstrand'] = expr['start'], expr['end'], expr['strand']
+    dmr['Xname'] = expr.get('name', expr.get('gene', dmr['X']))
 
 
 def clustermodel(fcovs, fmeth, model,
@@ -324,7 +325,7 @@ def regional_main(args=sys.argv[1:]):
 
     fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{method}"
     if a.X_locs:
-        fmt += "\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
+        fmt += "\t{Xname}\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
     print "#" + fmt.replace("}", "").replace("{", "")
 
 
@@ -356,7 +357,7 @@ def main(args=sys.argv[1:]):
 
     fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{method}"
     if a.X_locs:
-        fmt += "\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
+        fmt += "\t{Xname}\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
     print "#" + fmt.replace("}", "").replace("{", "")
     for c in clustermodel(a.covs, a.methylation, a.model,
                           max_dist=a.max_dist,
