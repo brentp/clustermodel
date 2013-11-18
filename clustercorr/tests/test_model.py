@@ -1,11 +1,12 @@
-from nose.tools import assert_raises
 from clustercorr.clustermodel import clustered_model
 from clustercorr.__main__ import fix_name
 import os.path as op
 import pandas as pd
 import tempfile
-import sys
 import numpy as np
+
+# avoid very verbose reprs with nosetests
+pd.DataFrame.__repr__ = lambda self: "<DataFrame>"
 
 HERE = op.dirname(__file__)
 
@@ -40,7 +41,6 @@ def check_clustered_model(covs, meth, model, kwargs):
 def test_clustered_model():
 
     # test for 20 samples and 5 CpGs
-    import numpy as np
 
     covs = pd.DataFrame({'age': range(1, 21), 'sex': ['M'] * 10 + ['F'] * 10,
         'disease': [True] * 5 + [False] * 5 + [True] * 5 + [False] * 5})
