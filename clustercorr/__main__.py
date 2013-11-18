@@ -8,12 +8,8 @@ import numpy as np
 import pandas as pd
 from aclust import aclust
 from .plotting import plot_dmr, plot_hbar, plot_continuous
-from clustercorr import feature_gen, cluster_to_dataframe, clustered_model
+from clustercorr import feature_gen, cluster_to_dataframe, clustered_model, CPUS
 from clustercorr.clustermodel import r
-
-from multiprocessing import cpu_count
-
-CPUS = cpu_count()
 
 xopen = lambda f: gzip.open(f) if f.endswith('.gz') else open(f)
 
@@ -133,9 +129,9 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         Xi = pd.read_table(xopen(X), index_col=0, usecols=[0]).index
         X_probes = set([fix_name(xi) for xi in Xi])
 
-    for clusters in groups_of(700 if X is None else
-                              20 if X_locs is not None
-                              else cpu_count(), cluster_gen):
+    for clusters in groups_of(100 * CPUS if X is None else
+                              10 * CPUS if X_locs is not None
+                              else CPUS, cluster_gen):
 
         if not X_locs is None:
             probes = []

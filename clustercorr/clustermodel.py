@@ -10,6 +10,10 @@ import tempfile
 r = R(max_len=5e7, return_err=False)
 r('source("%s/clustermodel.R")' % os.path.dirname(__file__))
 
+def kwargs_to_str(kwargs):
+    return ", ".join(("%s='%s'" if isinstance(v, basestring) else "%s=%s") \
+            % (k, v) for k, v in kwargs.iteritems())
+
 
 def rcall(cov, meths, model, X=None, kwargs=None,
         bin_fh=tempfile.NamedTemporaryFile(suffix='.cluster.bin')):
@@ -24,6 +28,10 @@ def rcall(cov, meths, model, X=None, kwargs=None,
     send_arrays(meths, bin_fh.file)
     r('meths = read.bin("%s")' % bin_fh.name)
 
+    if not 'mc.cores' in kwargs:
+        from . import CPUS
+        kwargs['mc.cores'] = CPUS
+
     # faster to use csv than to use pyper's conversion
     # TODO: only send this once.
     if not isinstance(cov, str):
@@ -35,8 +43,7 @@ def rcall(cov, meths, model, X=None, kwargs=None,
     assert os.path.exists(cov), cov
     r['cov'] = cov
     if X is None:
-        kwargs_str = ", ".join("%s='%s'" % (k, v)
-                                for k, v in kwargs.iteritems())
+        kwargs_str = kwargs_to_str(kwargs)
         r("a <- c('nan', 'nan', 'nan'); a <- fclust.lm(cov, meths, '%s', %s)"
                 % (model, kwargs_str))
         df = r['a']
@@ -44,11 +51,7 @@ def rcall(cov, meths, model, X=None, kwargs=None,
         df['coef'] = df['coef'].astype(float)
         return df
     else:
-        import multiprocessing
-        mc_cores = multiprocessing.cpu_count()
-        kwargs['mc.cores'] = mc_cores
-        kwargs_str = ", ".join("%s='%s'" % (k, v)
-                                for k, v in kwargs.iteritems())
+        kwargs_str = kwargs_to_str(kwargs)
         r("a <- NA; a <- fclust.lm.X(cov, meths, '%s', %s, %s)"
                 % (model, X, kwargs_str))
         df = r['a']
