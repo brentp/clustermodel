@@ -11,9 +11,15 @@ r = R(max_len=5e7, return_err=False)
 r('source("%s/clustermodel.R")' % os.path.dirname(__file__))
 
 def kwargs_to_str(kwargs):
-    return ", ".join(("%s='%s'" if isinstance(v, basestring) else "%s=%s") \
-            % (k, v) for k, v in kwargs.iteritems())
-
+    def convert(v):
+        if v is True: return "TRUE"
+        if v is False: return "FALSE"
+        if v is None: return "NA"
+        if isinstance(v, basestring):
+            return "'%s'" % v
+        return v
+    return ", ".join("%s=%s"  % (k, convert(v))
+                            for k, v in kwargs.iteritems())
 
 def rcall(cov, meths, model, X=None, kwargs=None,
         bin_fh=tempfile.NamedTemporaryFile(suffix='.cluster.bin')):
@@ -44,15 +50,19 @@ def rcall(cov, meths, model, X=None, kwargs=None,
     r['cov'] = cov
     if X is None:
         kwargs_str = kwargs_to_str(kwargs)
-        r("a <- c('nan', 'nan', 'nan'); a <- fclust.lm(cov, meths, '%s', %s)"
+        #print >>sys.stderr, "fclust.lm(cov, meths, '%s', %s)" % (model, kwargs_str)
+
+        r("a <- data.frame(p=NA, coef=NA, covariate=NA); a <- fclust.lm(cov, meths, '%s', %s)"
                 % (model, kwargs_str))
         df = r['a']
-        df['model'] = model
         df['coef'] = df['coef'].astype(float)
+        df['model'] = model
+        df['p'] = df['p'].astype(float)
         return df
     else:
         kwargs_str = kwargs_to_str(kwargs)
-        r("a <- NA; a <- fclust.lm.X(cov, meths, '%s', %s, %s)"
+        #print >>sys.stderr, "fclust.lm.X(cov, meths, '%s', %s, %s)" % (model, X, kwargs_str)
+        r("a = data.frame(p=NA, coef=NA, covariate=NA); a <- fclust.lm.X(cov, meths, '%s', %s, %s)"
                 % (model, X, kwargs_str))
         df = r['a']
         df['coef'] = df['coef'].astype(float)

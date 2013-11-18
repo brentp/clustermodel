@@ -18,7 +18,6 @@
 #    b. local using sum of Betas compared to betas of shuffled residuals
 
 suppressPackageStartupMessages(library('limma', quietly=TRUE))
-suppressPackageStartupMessages(library('reshape2', quietly=TRUE))
 
 #options(showWarnCalls=FALSE, warn=-1)
 
@@ -28,12 +27,13 @@ stouffer_liptak = function(pvalues, sigma, lower.tail=TRUE){
     Cm1 = solve(C) # C^-1
     qvalues = Cm1 %*% qvalues # Qstar = C^-1 * Q
     Cp = sum(qvalues) / sqrt(length(qvalues))
-    pstar = pnorm(Cp, mean=0, sd=1, lower.tail=lower.tail)
-    return(list(C=Cp, p=pstar))
+    pnorm(Cp, mean=0, sd=1, lower.tail=lower.tail)
 }
 
 stouffer_liptak.run = function(covs, meth, formula){
     # TODO: what if missing data in covariates.
+    # set up another method that runs each in lm() and pulls the coefficents
+    # and pvalues
     covs$methylation = 1 # 
     sigma = cor(meth, method="spearman")
     meth = t(meth)
@@ -47,7 +47,7 @@ stouffer_liptak.run = function(covs, meth, formula){
     beta.ave = sum(beta.orig) / length(beta.orig)
 
     p = stouffer_liptak(pvals, sigma)
-    return(c(covariate, p$p, beta.ave))
+    return(c(covariate, p, beta.ave))
 }
 
 # for bumping
@@ -138,7 +138,7 @@ gee.run = function(covs, formula, cluster_col="CpG", corstr="ex"){
     covariate = colnames(mm)[1 + as.integer(colnames(mm)[1] == "(Intercept)")]
     row = s$coefficients[covariate,]
     stat = row[['Wald']]
-    return(c(covariate, row[[ 'Pr(>|W|)']], row[['Estimate']]))
+    return(c(covariate, row[['Pr(>|W|)']], row[['Estimate']]))
 }
 
 #gee.run(read.csv('tt.csv'), methylation ~ disease, "id", "ex")
@@ -166,7 +166,7 @@ skat.run = function(covs, meth, formula, r.corr=c(0.00, 0.015, 0.06, 0.15)){
     #sk <- SKAT(meth, obj, is_check_genotype=TRUE, method="optimal.adj", kernel="linear.weighted", weights.beta=c(1, 10))
     #sk <- SKAT(meth, obj, is_check_genotype=TRUE, method="optimal.adj", kernel="linear")
     #sink()
-    return(c(covariate, sk$p.value, 'nan'))
+    return(c(covariate, sk$p.value, NaN))
 }
 
 #covs = read.csv('/tmp/sk.csv')
@@ -260,8 +260,11 @@ fclust.lm = function(covs, meths, formula, gee.corstr=NULL, ..., mc.cores=4){
 
     cluster_ids = 1:length(meths)
     results = mclapply(cluster_ids, function(cs){
-        res = clust.lm(covs, meths[[cs]], formula, gee.corstr=gee.corstr, ...)
-        list(covariate=res[1], p=res[2], coef=res[3], cluster_id=cs)
+        res = try(clust.lm(covs, meths[[cs]], formula, gee.corstr=gee.corstr, ...))
+        if(!inherits(res, "try-error")){
+            return(list(covariate=res[1], p=res[2], coef=res[3], cluster_id=cs))
+        }
+            return(list(covariate=NA, p=NaN, coef=NaN, cluster_id=cs))
     }, mc.cores=mc.cores)
     results = rbindlist(results)
     rownames(results) = cluster_ids
@@ -357,15 +360,16 @@ test_X = function(){
     df = fclust.lm.X(covs, meth, formula, X, testing=TRUE, gee.corstr="ar", gee.clustervar="id")
     print(head(df[order(as.numeric(df$p)),], n=5))
 
-    #cprint("\nbumping")
-    #formula = methylation ~ disease #+ (1|id) + (1|CpG)
-    #df = fclust.lm.X(covs, meth, formula, X, testing=TRUE, bumping=TRUE)
-    #print(head(df[order(as.numeric(df$p)),], n=5))
+    cprint("\nbumping")
+    formula = methylation ~ disease #+ (1|id) + (1|CpG)
+    df = fclust.lm.X(covs, meth, formula, X, testing=TRUE, bumping=TRUE)
+    print(head(df[order(as.numeric(df$p)),], n=5))
 
     cprint("\nliptak")
     formula = methylation ~ disease #+ (1|id) + (1|CpG)
-    df = fclust.lm.X(covs, meth, formula, X, testing=TRUE, liptak=TRUE)
-    print(head(df[order(as.numeric(df$p)),], n=5))
+    dfl = fclust.lm.X(covs, meth, formula, X, testing=TRUE, liptak=TRUE)
+    print(head(dfl[order(dfl$p),], n=5))
+    print(dfl[dfl$covariate == "A_33_P3403576",])
 
     # show that we get the same result (about with the linear model)
     # pvalue is  2.85844757130782e-06 for the clustered approach and
