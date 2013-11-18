@@ -66,7 +66,7 @@ def distX(dmr, expr):
         if strand == "-":
             dmr['distance'] *= -1
     dmr['Xstart'], dmr['Xend'], dmr['Xstrand'] = expr['start'], expr['end'], expr['strand']
-    dmr['Xname'] = expr.get('name', expr.get('gene', dmr['X']))
+    dmr['Xname'] = expr.get('name', expr.get('gene', dmr.get('X', 'NA')))
 
 
 def clustermodel(fcovs, fmeth, model,
