@@ -21,6 +21,15 @@ suppressPackageStartupMessages(library('limma', quietly=TRUE))
 
 #options(showWarnCalls=FALSE, warn=-1)
 
+# no cluster. just a single methylation site.
+lm.run = function(covs, methylation, formula){
+    covs$methylation = methylation
+    s = summary(lm(formula, covs))$coefficients
+    covariate = rownames(s)[2]
+    row = s[2,]
+    c(covariate, row[['Pr(>|t|)']], row[['Estimate']])
+}
+
 stouffer_liptak = function(pvalues, sigma, lower.tail=TRUE){
     qvalues = qnorm(pvalues, mean=0, sd=1, lower.tail=lower.tail)
     C = chol(sigma)
@@ -195,6 +204,15 @@ clust.lm = function(covs, meth, formula,
     formula = as.formula(formula)
     stopifnot(is.null(gee.corstr) || is.null(limma.block))
 
+    if(ncol(meth) == 1 || is.vector(meth)){
+        # just got one column, so we force it to use a linear model
+        # remove random effects terms:
+        lhs = grep("|", attr(terms(formula), "term.labels"), fixed=TRUE, value=TRUE, invert=TRUE)
+        lhs = paste(lhs, collapse=" + ")
+        formula = as.formula(paste("methylation", lhs, sep=" ~ "))
+        return(lm.run(covs, meth, formula))
+    }
+
     # we assume there is one extra column for each CpG
     rownames(meth) = rownames(covs)
 
@@ -250,6 +268,7 @@ read.bin = function(bin.file){
 fclust.lm = function(covs, meths, formula, gee.corstr=NULL, ..., mc.cores=4){
     if(is.character(covs)) covs = read.csv(covs)
 
+    # its a single entry, not list of matrices that we can parallelize
     if(is.matrix(meths) || is.data.frame(meths)){
         res = (clust.lm(covs, meths, formula, gee.corstr=gee.corstr, ...))
         return(data.frame(covariate=res[1], p=res[2], coef=res[3]))
@@ -271,12 +290,18 @@ fclust.lm = function(covs, meths, formula, gee.corstr=NULL, ..., mc.cores=4){
     results
 }
 
+
 if(FALSE){
     covs = read.delim("clustercorr/tests/example-covariates.txt")
     covs$id = 1:nrow(covs)
     meth = read.csv('clustercorr/tests/example-meth.csv', row.names=1)
 
+    #  check with only a single value
+    meth = cbind(meth[,1])
+    print(ncol(meth))
+
     print(fclust.lm(covs, meth, methylation ~ disease + (1|id) + (1|CpG)))
+
     print('liptak')
     print(fclust.lm(covs, meth, methylation ~ disease, liptak=TRUE))
 

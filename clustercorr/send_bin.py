@@ -3,7 +3,11 @@ import numpy as np
 def send_array(arr, fh):
     # number of probes (columns)
     arr = np.asarray(arr).T
-    np.array(arr.shape, dtype=np.int64).tofile(fh)
+    shape = arr.shape
+    if len(shape) == 1:  # could be e.g.: (24,). we want (24, 1)
+        shape = (shape[0], 1)
+
+    np.array(shape, dtype=np.int64).tofile(fh)
     np.asarray(arr).flatten().astype(np.float64).tofile(fh)
 
 def send_arrays(arrays, fh):

@@ -139,7 +139,8 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=Fals
 
     cov_df['id'] = np.arange(cov_df.shape[0]).astype(int)
     cov = cov_df
-    meths = cluster_dfs if not isinstance(cluster_dfs, pd.DataFrame) \
+    meths = cluster_dfs if not isinstance(cluster_dfs, (pd.DataFrame,
+                                                        pd.Series)) \
                         else [cluster_dfs]
     if outlier_sds > 0:
         [set_outlier_nan(cluster_df, outlier_sds) for cluster_df in meths]

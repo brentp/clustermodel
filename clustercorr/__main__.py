@@ -251,7 +251,7 @@ def add_clustering_args(p):
                    help="minimum correlation to merge 2 probes")
     cp.add_argument('--min-cluster-size', type=int, default=2,
                     help="minimum cluster size on which to run model: "
-                   "must be at least 2")
+                   "must be at least 1")
     cp.add_argument('--linkage', choices=['single', 'complete'],
                     default='complete', help="linkage method")
     cp.add_argument('--multi-member', default=False, action="store_true",
@@ -342,7 +342,7 @@ def regional_main(args=sys.argv[1:]):
                           gee_args=a.gee_args,
                           skat=a.skat,
                           png_path=a.png_path):
-        c['method'] = method
+        c['method'] = method if c['n_probes'] > 1 else 'lm'
         print fmt.format(**c)
 
 
@@ -377,7 +377,7 @@ def main(args=sys.argv[1:]):
                           X_dist=a.X_dist,
                           outlier_sds=a.outlier_sds,
                           png_path=a.png_path):
-        c['method'] = method
+        c['method'] = method if c['n_probes'] > 1 else 'lm'
         print fmt.format(**c)
 
 if __name__ == "__main__":

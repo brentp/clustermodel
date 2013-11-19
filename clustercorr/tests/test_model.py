@@ -7,12 +7,15 @@ import numpy as np
 
 # avoid very verbose reprs with nosetests
 pd.DataFrame.__repr__ = lambda self: "<DataFrame>"
+pd.Series.__repr__ = lambda self: "<Series>"
 
 HERE = op.dirname(__file__)
 
 def test_model():
 
     meth = pd.read_csv(op.join(HERE, "example-meth.csv"), index_col=0).T
+    meth1 = meth.ix[1, :]
+
     covs = pd.read_table(op.join(HERE, "example-covariates.txt"))
 
     for kwargs in ({'gee_args': ('ar', 'id')},
@@ -21,10 +24,16 @@ def test_model():
                    {'bumping': True},):
 
         yield check_clustered_model, covs, meth, "methylation ~ disease", kwargs
+        yield check_clustered_model, covs, meth1, "methylation ~ disease", kwargs
+
 
     for random_effects in ("(1|CpG)", "(1|id)", "(1|id) + (1|CpG)"):
         yield (check_clustered_model, covs, meth,
                 "methylation ~ disease + " + random_effects, {})
+
+        yield (check_clustered_model, covs, meth1,
+                "methylation ~ disease + " + random_effects, {})
+
 
 def check_clustered_model(covs, meth, model, kwargs):
 
