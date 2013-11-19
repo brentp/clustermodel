@@ -137,11 +137,13 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=Fals
                methylation better describes the dependent variable.
     """
 
-    # TODO: outliers
     cov_df['id'] = np.arange(cov_df.shape[0]).astype(int)
     cov = cov_df
     meths = cluster_dfs if not isinstance(cluster_dfs, pd.DataFrame) \
                         else [cluster_dfs]
+    if outlier_sds > 0:
+        [set_outlier_nan(cluster_df, outlier_sds) for cluster_df in meths]
+
     if "|" in model:
         assert not any((skat, liptak, bumping, gee_args))
         return rcall(cov, meths, model, X)
