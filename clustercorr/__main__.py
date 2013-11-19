@@ -82,7 +82,7 @@ def clustermodel(fcovs, fmeth, model,
     for res in clustermodelgen(fcovs, cluster_gen, model, sep=sep,
             X=X, X_locs=X_locs, X_dist=X_dist, outlier_sds=outlier_sds,
             liptak=liptak, bumping=bumping, gee_args=gee_args,
-            skat=False, png_path=None):
+            skat=skat, png_path=None):
         yield res
 
 
