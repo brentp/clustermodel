@@ -1,5 +1,4 @@
 include README.md
-include clustermodel/clustermodel.R
 include clustermodel/tests/*.gz
 include clustermodel/tests/example*
 include LICENSE
