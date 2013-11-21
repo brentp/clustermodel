@@ -8,7 +8,7 @@ from .send_bin import send_arrays
 
 import tempfile
 r = R(max_len=5e7, return_err=False)
-r('source("%s/clustermodel.R")' % os.path.dirname(__file__))
+r('library(clustermodelr)')
 
 def kwargs_to_str(kwargs):
     def convert(v):

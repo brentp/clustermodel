@@ -6,10 +6,11 @@ fitting models to clustered correlated data.
 The Problem
 ===========
 
-You have methylation data that with small, subtle changes that can not
-be detected at the single-CpG level and you want to detect regional changes.
-Here is an example of the subtle changes across a region with disease in green
-vs control in blue (image created by this software):
+You have methylation data (or other locally correlated data) with small,
+subtle changes that can not be detected at the single-CpG level and you
+want to detect regional changes.  Here is an example of the subtle changes
+across a region with disease in green vs control in blue (image created
+by this software):
 
 ![DMR Plot](https://gist.github.com/brentp/204899d3d220ce8a6acd/raw/dd2ef05d22011a77f8020377eede94942ec6e01c/dmr.png)
 
@@ -245,6 +246,20 @@ column is negative if the methylation region is upstream of the expression
 probe and positive otherwise. 
 
 See the example data in `clustermodel/tests/` for how to set up your own data.
+
+
+INSTALLATION
+============
+
+You should have all of the R packages in scripts/check-R.R installed and should
+be able to run that script without problems. You will have to do in R:
+
+    install.packages(devtools)
+    library(devtools)
+    install_github("brentp/clustermodelr")
+
+The rest can be installed with install.packages or biocLite().
+
 
 Generating Correlated Data
 ==========================
