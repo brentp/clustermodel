@@ -21,7 +21,17 @@ suppressPackageStartupMessages(library('limma', quietly=TRUE))
 
 #options(showWarnCalls=FALSE, warn=-1)
 
-# no cluster. just a single methylation site.
+#' Run lm on a single site
+#' 
+#' Unlike most of the function in this package, this function is used on a
+#' single site.
+#' @param covs covariate data.frame containing the terms in formula
+#'        except "methylation" which is added automatically
+#' @param methylation a single column matrix or a vector the same length
+#'        as \code{nrow(covs)}
+#' @param formula an R formula containing "methylation"
+#' @return \code{covariate, p, coef}
+#' @export
 lm.run = function(covs, methylation, formula){
     covs$methylation = methylation
     s = summary(lm(formula, covs))$coefficients
@@ -30,6 +40,16 @@ lm.run = function(covs, methylation, formula){
     c(covariate, row[['Pr(>|t|)']], row[['Estimate']])
 }
 
+#' Perform the stouffer-liptak correction on a set of correlated pvalues
+#'
+#' Accepts a list of p-values and a correlation matrix and returns a
+#' single p-value that combines the p-values accounting for their
+#' correlation
+#'
+#' @param pvalues a vector of pvalues
+#' @param sigma a matrix of shape \code{nrow=ncol=length(pvalues)}
+#' @return combined p-value
+#' @export
 stouffer_liptak = function(pvalues, sigma, lower.tail=TRUE){
     qvalues = qnorm(pvalues, mean=0, sd=1, lower.tail=lower.tail)
     C = chol(sigma)
