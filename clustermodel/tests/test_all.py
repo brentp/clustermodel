@@ -1,5 +1,5 @@
 from nose.tools import assert_raises
-from clustercorr.feature import ClusterFeature
+from clustermodel import ClusterFeature
 
 
 def test_cluster_feature():

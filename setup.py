@@ -3,7 +3,7 @@ use_setuptools()
 
 from setuptools import setup, find_packages
 
-import clustercorr
+import clustermodel
 # Run 2to3 builder if we're on Python 3.x, from
 #   http://wiki.python.org/moin/PortingPythonToPy3k
 try:
@@ -13,12 +13,11 @@ except ImportError:
     from distutils.command.build_py import build_py
 command_classes = {'build_py': build_py}
 
-setup(name='clustercorr',
-      version=clustercorr.__version__,
+setup(name='clustermodel',
+      version=clustermodel.__version__,
       description="statistical models on clusters of correlated genomic data",
       packages=find_packages(),
       url="https://github.com/brentp/cluster-corr/",
-      #py_modules=['clustercorr'],
       long_description=open('README.md').read(),
       platforms='any',
       classifiers=[

@@ -1,5 +1,5 @@
-from clustercorr.clustermodel import clustered_model
-from clustercorr.__main__ import fix_name
+from clustermodel.clustermodel import clustered_model
+from clustermodel.__main__ import fix_name
 import os.path as op
 import pandas as pd
 import tempfile

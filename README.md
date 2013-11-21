@@ -1,5 +1,5 @@
-clustercorr
-===========
+clustermodel
+============
 
 fitting models to clustered correlated data.
 
@@ -54,9 +54,9 @@ model in R syntax: *methylation ~ disease* where the first covariate on the RHS 
 always our covariate of interest (where we get the p-value).
 
 ```Shell
-python -m clustercorr 'methylation ~ disease' \
-          clustercorr/tests/example-covariates.txt \
-          clustercorr/tests/example-methylation.txt.gz \
+python -m clustermodel 'methylation ~ disease' \
+          clustermodel/tests/example-covariates.txt \
+          clustermodel/tests/example-methylation.txt.gz \
           --liptak --min-cluster-size 3 | head
 ```
 
@@ -78,9 +78,9 @@ a random intercept by `CpG` (this covariate becomes available automatically if y
 follows our conventions (see example data for details).
 
 ```Shell
-python -m clustercorr 'methylation ~ disease + (1|CpG)' \
-          clustercorr/tests/example-covariates.txt \
-          clustercorr/tests/example-methylation.txt.gz \
+python -m clustermodel 'methylation ~ disease + (1|CpG)' \
+          clustermodel/tests/example-covariates.txt \
+          clustermodel/tests/example-methylation.txt.gz \
           --min-cluster-size 3 | head
 
 #chrom  start   end coef    p   n\_probes    model   method
@@ -105,9 +105,9 @@ clustering
 If we run the same model with different clustering parameters, we may get different resuts:
 
 ```Shell
-python -m clustercorr 'methylation ~ disease + (1|CpG)' \
-          clustercorr/tests/example-covariates.txt \
-          clustercorr/tests/example-methylation.txt.gz \
+python -m clustermodel 'methylation ~ disease + (1|CpG)' \
+          clustermodel/tests/example-covariates.txt \
+          clustermodel/tests/example-methylation.txt.gz \
           --min-cluster-size 2 \
           --linkage single  \
           --rho-min 0.2 | head
@@ -133,10 +133,10 @@ parameters are not used. Probes that fall into each region in the
 --regions argument will be assumed as a cluster and the linear model will be run.
 Here is an example call:
 
-    python -m clustercorr \
+    python -m clustermodel \
         'methylation ~ disease + (1|CpG)' \
-        clustercorr/tests/example-covariates.txt \
-        clustercorr/tests/example-methylation.txt.gz \
+        clustermodel/tests/example-covariates.txt \
+        clustermodel/tests/example-methylation.txt.gz \
         --regions r.bed
 
 Note that the arguments are the same except for the --regions argument
@@ -151,7 +151,7 @@ just have to do some programming.
 The command-line assumes that your methylation data looks like this:
 
 ```Shell
-$ zless clustercorr/tests/example-methylation.txt.gz | cut -f 1-6 | head
+$ zless clustermodel/tests/example-methylation.txt.gz | cut -f 1-6 | head
 
 probe   TF0 FF1 TM2 TF3 FM4
 chr1:2041228    3.096   3.678   3.032   3.186   3.565
@@ -170,7 +170,7 @@ The columns of the methylation matrix must match the rows of the
 covariates (here: `TF0`, `FF1`, `TM2`, `TF3`, `FM4`, ...):
 
 ```Shell
-$ head -6 clustercorr/tests/example-covariates.txt
+$ head -6 clustermodel/tests/example-covariates.txt
 
 sample_id   disease gender  anumber
 TF0 T   F   0
@@ -209,12 +209,12 @@ enables testing the relation between expression and methylation in the context
 of a mixed-effects model (or GEE, or liptak, or bumphunting).
 The syntax looks like::
 
-    python -m clustercorr \
+    python -m clustermodel \
            'methylation ~ disease + gender + (1|id) + (1|CpG)' \
-           clustercorr/tests/example-covariates.txt \
-           clustercorr/tests/example-methylation.txt.gz \
-           --X clustercorr/tests/example-expression.txt.gz \
-           --X-locs clustercorr/tests/example-expression-probe-locs.bed.gz \
+           clustermodel/tests/example-covariates.txt \
+           clustermodel/tests/example-methylation.txt.gz \
+           --X clustermodel/tests/example-expression.txt.gz \
+           --X-locs clustermodel/tests/example-expression-probe-locs.bed.gz \
            --X-dist 150000
 
 where the first 3 arguments are as before: the model, the covariates, and the
@@ -244,7 +244,7 @@ Note that each probe is automatically inserted into the model. The distance
 column is negative if the methylation region is upstream of the expression
 probe and positive otherwise. 
 
-See the example data in `clustercorr/tests/` for how to set up your own data.
+See the example data in `clustermodel/tests/` for how to set up your own data.
 
 Generating Correlated Data
 ==========================

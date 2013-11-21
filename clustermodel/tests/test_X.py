@@ -1,5 +1,5 @@
 from nose.tools import assert_raises
-from clustercorr.__main__ import distX
+from clustermodel.__main__ import distX
 
 
 def test_distX():

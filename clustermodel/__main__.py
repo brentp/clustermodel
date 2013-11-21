@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 from aclust import aclust
 from .plotting import plot_dmr, plot_hbar, plot_continuous
-from clustercorr import feature_gen, cluster_to_dataframe, clustered_model, CPUS
-from clustercorr.clustermodel import r
+from . import feature_gen, cluster_to_dataframe, clustered_model, CPUS
+from .clustermodel import r
 
 xopen = lambda f: gzip.open(f) if f.endswith('.gz') else open(f)
 
