@@ -158,7 +158,7 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=Fals
     elif gee_args:
         corr, col = gee_args
         assert corr[:2] in ('ex', 'ar', 'in', 'un')
-        return rcall(cov, meths, model, X, {"gee.corstr": corr, "gee.clustervar": col})
+        return rcall(cov, meths, model, X, {"gee.corstr": corr, "gee.idvar": col})
     else:
         raise Exception('must specify one of skat/liptak/bumping/gee_args'
                         ' or specify a mixed-effect model in lme4 syntax')
