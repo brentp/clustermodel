@@ -30,7 +30,8 @@ suppressPackageStartupMessages(library('limma', quietly=TRUE))
 #' @param methylation a single column matrix or a vector the same length
 #'        as \code{nrow(covs)}
 #' @param formula an R formula containing "methylation"
-#' @return \code{covariate, p, coef}
+#' @return \code{covariate, p, coef} where p and coef are for the coefficient
+#'         of the first term on the RHS of the model.
 #' @export
 lm.run = function(covs, methylation, formula){
     covs$methylation = methylation
@@ -59,6 +60,17 @@ stouffer_liptak = function(pvalues, sigma, lower.tail=TRUE){
     pnorm(Cp, mean=0, sd=1, lower.tail=lower.tail)
 }
 
+
+#' Run lm on each column in a cluster and combine p-values with the 
+#' Stouffer-Liptak method
+#' 
+#' @param covs covariate data.frame containing the terms in formula
+#'        except "methylation" which is added automatically
+#' @param methylation a matrix of correlated data.
+#' @param formula an R formula containing "methylation"
+#' @return \code{covariate, p, coef} where p and coef are for the coefficient
+#'         of the first term on the RHS of the model.
+#' @export
 stouffer_liptak.run = function(covs, meth, formula){
     # TODO: what if missing data in covariates.
     # set up another method that runs each in lm() and pulls the coefficents
@@ -121,6 +133,23 @@ sum.lowess = function(icoefs, weights, span=0.2){
     return(sum(res$fitted))
 }
 
+
+#' Run a local bump-hunting algorithm
+#' 
+#' This performs a similar task to the Bump-Hunting algorithm, but here the
+#' \code{meth} argument is a putative bump. The residuals of the null model
+#' are shuffled added back to the null model and the beta's of that simulated
+#' data are repeatedly stored and finally compare to the observed coefficient.
+#' Due to the shufflings, this is much slower than the other functions in this
+#' package.
+#' 
+#' @param covs covariate data.frame containing the terms in formula
+#'        except "methylation" which is added automatically
+#' @param methylation a matrix of correlated data.
+#' @param formula an R formula containing "methylation"
+#' @return \code{covariate, p, coef} where p and coef are for the coefficient
+#'         of the first term on the RHS of the model.
+#' @export
 bumping.run = function(covs, meth, formula, n_sims=100){
     suppressPackageStartupMessages(library('parallel', quietly=TRUE))
     covs$methylation = 1 # for formula => model.matrix
@@ -153,6 +182,18 @@ bumping.run = function(covs, meth, formula, n_sims=100){
 #covs = read.csv(file='t.txt')
 #bumping.run(covs, methylation ~ asthma)
 
+#' Use Generalized Estimating Equations to assign significance to a cluster
+#' of data.
+#' 
+#' @param covs covariate data.frame containing the terms in formula
+#'        except "methylation" which is added automatically
+#' @param methylation a matrix of correlated data.
+#' @param formula an R formula containing "methylation"
+#' @param cluster.idvar idvar sent to \code{geepack::geeglm}
+#' @param corstr the corstr sent to \code{geepack::geeglm}
+#' @return \code{covariate, p, coef} where p and coef are for the coefficient
+#'         of the first term on the RHS of the model.
+#' @export
 gee.run = function(covs, formula, cluster_col="CpG", corstr="ex"){
     # assume it's already sorted by CpG, then by id.
     if(cluster_col != "CpG" && corstr == "ar"){
@@ -172,6 +213,21 @@ gee.run = function(covs, formula, cluster_col="CpG", corstr="ex"){
 
 #gee.run(read.csv('tt.csv'), methylation ~ disease, "id", "ex")
 
+#' Use mixed-effects model in lme4 syntax to associate a covariate with a
+#' cluster of data.
+#' 
+#' An example model would look like:
+#'    methylation ~ disease + age + gender + (1|CpG) + (1|id)
+#' To determine the associate of disease and methylation and allowing for
+#' random intercepts by CpG site and by sample id.
+#' 
+#' @param covs covariate data.frame containing the terms in formula
+#'        except "methylation" which is added automatically
+#' @param methylation a matrix of correlated data.
+#' @param formula an R formula containing "methylation"
+#' @return \code{covariate, p, coef} where p and coef are for the coefficient
+#'         of the first term on the RHS of the model.
+#' @export
 mixed_model.run = function(covs, formula){
     suppressPackageStartupMessages(library('lme4', quietly=TRUE))
     suppressPackageStartupMessages(library('multcomp', quietly=TRUE))
@@ -183,7 +239,20 @@ mixed_model.run = function(covs, formula){
     return(c(covariate, s$test$pvalues[[1]], s$test$coefficients[[1]]))
 }
 
-
+#' Use SKAT to associate a covariate with a cluster of data.
+#' 
+#' An example model would look like:
+#'    disease ~ 1
+#' And the result would be testing if adding the correlated matrix of
+#' data (with all the assumptions of SKAT) improves that null model.
+#' 
+#' @param covs covariate data.frame containing the terms in formula
+#'        except "methylation" which is added automatically
+#' @param methylation a matrix of correlated data.
+#' @param formula an R formula containing "methylation"
+#' @return \code{covariate, p, coef} where p and coef are for the coefficient
+#'         of the first term on the RHS of the model.
+#' @export
 skat.run = function(covs, meth, formula, r.corr=c(0.00, 0.015, 0.06, 0.15)){
     suppressPackageStartupMessages(library('SKAT', quietly=TRUE))
     covariate = all.vars(formula)[1]
