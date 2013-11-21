@@ -16,7 +16,7 @@ sds = ""
 
 extra = "| bsub -J {name} -e logs/{name}.err -o logs/{name}.out -M 2000000"
 
-base_cmd = "echo 'python -m clustercorr \"{model}\" {covs} {meth} {method} {sds} > {out}/{name}.{group}.pvals.bed "
+base_cmd = "echo 'python -m clustermodel \"{model}\" {covs} {meth} {method} {sds} > {out}/{name}.{group}.pvals.bed "
 base_cmd += "'" + extra
 
 # switch for skat # methylatoin ~ disease + age => disease + age

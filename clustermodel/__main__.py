@@ -204,8 +204,8 @@ def plot_res(res, png_path, covs, covariate, cluster_df):
 
 
 def main_example():
-    fcovs = "clustercorr/tests/example-covariates.txt"
-    fmeth = "clustercorr/tests/example-methylation.txt.gz"
+    fcovs = "clustermodel/tests/example-covariates.txt"
+    fmeth = "clustermodel/tests/example-methylation.txt.gz"
     model = "methylation ~ disease + gender"
 
     for cluster_p in clustermodel(fcovs, fmeth, model):
