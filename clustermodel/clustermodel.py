@@ -52,7 +52,7 @@ def rcall(cov, meths, model, X=None, kwargs=None,
         kwargs_str = kwargs_to_str(kwargs)
         #print >>sys.stderr, "fclust.lm(cov, meths, '%s', %s)" % (model, kwargs_str)
 
-        r("a <- data.frame(p=NA, coef=NA, covariate=NA); a <- mclust.lm(cov, meths, '%s', %s)"
+        r("a <- data.frame(p=NaN, coef=NaN, covariate=NA); a <- mclust.lm(cov, meths, '%s', %s)"
                 % (model, kwargs_str))
         df = r['a']
         df['coef'] = df['coef'].astype(float)
@@ -62,7 +62,7 @@ def rcall(cov, meths, model, X=None, kwargs=None,
     else:
         kwargs_str = kwargs_to_str(kwargs)
         #print >>sys.stderr, "mclust.lm.X(cov, meths, '%s', %s, %s)" % (model, X, kwargs_str)
-        r("a = data.frame(p=NA, coef=NA, covariate=NA); a <- mclust.lm.X(cov, meths, '%s', %s, %s)"
+        r("a = data.frame(p=NaN, coef=NaN, covariate=NA); a <- mclust.lm.X(cov, meths, '%s', %s, %s)"
                 % (model, X, kwargs_str))
         df = r['a']
         df['coef'] = df['coef'].astype(float)
