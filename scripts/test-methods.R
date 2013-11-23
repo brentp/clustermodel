@@ -4,11 +4,11 @@ library(data.table)
 set.seed(42)
 
 # TODO: test large DMR with few samples and small DMR with 10+ each.
-n_sims = 201
+n_sims = 40
 n_each = 3 # number of samples from each group
-n_probes = 15
+n_probes = 2
 rho = 0.2
-p_cutoff = 0.005
+p_cutoff = 0.05 / 200000 * n_probes # we do fewer tests with more probes
 effect = 0.02
 
 gen_samples = function(rho, n_each, n_probes, means=c(0, 0.0), sds=c(0.02, 0.02)){
@@ -18,7 +18,7 @@ gen_samples = function(rho, n_each, n_probes, means=c(0, 0.0), sds=c(0.02, 0.02)
 }
 
 # generate from a t-disribution.
-gen_samples = function(rho, n_each, n_probes, means=c(0, 0.04), sds=c(0.02, 0.02)){
+gen_samples.t = function(rho, n_each, n_probes, means=c(0, 0.04), sds=c(0.02, 0.02)){
     cases = make.correlated(rho, matrix(sds[1] * rt(n_each * n_probes, 3) + means[1], nrow=n_each))
     controls = make.correlated(rho, matrix(sds[2] * rt(n_each * n_probes, 3) + means[2], nrow=n_each))
     as.matrix(rbind(cases, controls))
@@ -31,8 +31,8 @@ covs = data.frame(case=c(rep(1, n_each), rep(0, n_each)))
 
 
 
-found = mclapply(1:n_sims, function(i){
-    meth = gen_samples(rho, n_each, n_probes, means=c(0, effect), sds=c(0.02, 0.02))
+found.true = mclapply(1:n_sims, function(i){
+    meth = gen_samples.t(rho, n_each, n_probes, means=c(0, effect), sds=c(0.02, 0.02))
     covs.long = expand.covs(covs, meth)
     mm = mixed_modelr(covs.long, methylation ~ case + (1|id) + (1|CpG))$p < p_cutoff
     ge = geer(covs.long, methylation ~ case, corstr="ar", idvar="id")$p < p_cutoff
@@ -42,11 +42,29 @@ found = mclapply(1:n_sims, function(i){
     #li = stouffer_liptakr(covs, meth, methylation ~ case)$p < p_cutoff
     #lip = stouffer_liptakr(covs, meth, methylation ~ case, cor.method="pearson")$p < p_cutoff
     list(ge=ge, mm=mm, ex=ex, excpg=excpg)#, lip=lip, li=li)
-}, mc.cores=1)
+}, mc.cores=4)
+found.true = rbindlist(found.true)
 
-df = rbindlist(found)
+found.false = mclapply(1:n_sims, function(i){
+    meth = gen_samples.t(rho, n_each, n_probes, means=c(0, 0), sds=c(0.02, 0.02))
+    covs.long = expand.covs(covs, meth)
+    mm = mixed_modelr(covs.long, methylation ~ case + (1|id) + (1|CpG))$p < p_cutoff
+    ge = geer(covs.long, methylation ~ case, corstr="ar", idvar="id")$p < p_cutoff
+    ex = geer(covs.long, methylation ~ case, corstr="ex", idvar="id")$p < p_cutoff
+    excpg = geer(covs.long, methylation ~ case, corstr="ex", idvar="CpG")$p < p_cutoff
+    
+    #li = stouffer_liptakr(covs, meth, methylation ~ case)$p < p_cutoff
+    #lip = stouffer_liptakr(covs, meth, methylation ~ case, cor.method="pearson")$p < p_cutoff
+    list(ge=ge, mm=mm, ex=ex, excpg=excpg)#, lip=lip, li=li)
+}, mc.cores=4)
+found.false = rbindlist(found.false)
 
 
-for(k in colnames(df)){
-    write(sprintf("%s\t%.4f", k, sum(df[[k]]) / n_sims), stdout())
+
+write("method\ttpr\tfpr\ttpr\ttpr/fpr", stdout())
+for(k in colnames(found.true)){
+    tpr = sum(found.true[[k]]) / n_sims
+    fpr = sum(found.false[[k]]) / n_sims
+    write(sprintf("%s\t%.4f\t%.4f\t%.4f", k, tpr, fpr, tpr/fpr)
+    , stdout())
 }    
