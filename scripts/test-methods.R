@@ -71,7 +71,7 @@ found.false = data.frame(rbindlist(found.false))
 found.false$effect = 0
 
 found = rbind(found.true, found.false)
-write.table(found, row.names=FALSE, quote=FALSE, file="cluster.cmp.txt")
+write.table(found, row.names=FALSE, quote=FALSE, file="cluster.cmp.txt", sep="\t")
 
 
 write("method\ttpr\tfpr\tppv\tprecision\tf1.score", stdout())
