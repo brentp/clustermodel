@@ -126,6 +126,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
     if not X_locs is None:
         # change names so R formulas are OK
         X_locs = pd.read_table(xopen(X_locs), index_col="probe")
+        X_locs.ix[:, 0] = map(str, X_locs.ix[:, 0])
         X_locs.index = [fix_name(xi) for xi in X_locs.index]
 
         # just reading in the first column to make sure we're using probes that
