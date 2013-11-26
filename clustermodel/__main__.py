@@ -359,7 +359,7 @@ def main(args=sys.argv[1:]):
     a = p.parse_args(args)
     method = get_method(a)
 
-    fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{method}"
+    fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{covariate}\t{method}"
     if a.X_locs:
         fmt += "\t{Xname}\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
     print "#" + fmt.replace("}", "").replace("{", "")
