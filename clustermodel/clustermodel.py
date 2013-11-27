@@ -9,6 +9,7 @@ from .send_bin import send_arrays
 import tempfile
 r = R(max_len=5e7, return_err=False)
 r('library(clustermodelr)')
+#r('source("~/src/clustermodelr/R/clustermodelr.R");source("~/src/clustermodelr/R/combine.R")')
 
 def kwargs_to_str(kwargs):
     def convert(v):
@@ -51,7 +52,6 @@ def rcall(cov, meths, model, X=None, kwargs=None,
     if X is None:
         kwargs_str = kwargs_to_str(kwargs)
         #print >>sys.stderr, "fclust.lm(cov, meths, '%s', %s)" % (model, kwargs_str)
-
         r("a <- data.frame(p=NaN, coef=NaN, covariate=NA); a <- mclust.lm(cov, meths, '%s', %s)"
                 % (model, kwargs_str))
         df = r['a']
@@ -68,8 +68,8 @@ def rcall(cov, meths, model, X=None, kwargs=None,
         df['coef'] = df['coef'].astype(float)
         return df
 
-def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=False,
-        bumping=False, skat=False, outlier_sds=None):
+def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), combine=False,
+        bumping=False, skat=False, counts=False, outlier_sds=None):
     """
     Given a cluster of (presumably) correlated CpG's. There are a number of
     methods one could employ to determine the association of the methylation
@@ -104,7 +104,7 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=Fals
         model - model in R syntax with "methylation ~" as the RHS. Other
                 allowed covariates are any that appear in cov_df as well as
                 "CpG" and "id" which will be set by this function.
-                If not using liptak or bumping or gee_args this model should
+                If not using combine or bumping or gee_args this model should
                 likely have a random effect. The obvious choices would be:
                 (1|CpG) and/or (1|id) to add a random-intercept by CpG site
                 and/or by sample.
@@ -124,8 +124,8 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=Fals
                    work as expected.
                    So common invocations would be ('ex', 'CpG') or ('ar', 'id')
 
-        liptak - if set to True, use liptak correction on the p-values from
-                 modelling each CpG independently.
+        combine - either 'liptak' or 'z-score' method for combining the
+                  p-values from modelling each CpG independently.
 
         bumping - if set to True, use a modified bump-hunting algorithm to test
                   the sum of the observed coefficients (1 for each CpG) against
@@ -146,21 +146,22 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), liptak=Fals
         [set_outlier_nan(cluster_df, outlier_sds) for cluster_df in meths]
 
     if "|" in model:
-        assert not any((skat, liptak, bumping, gee_args))
-        return rcall(cov, meths, model, X)
+        assert not any((skat, combine, bumping, gee_args))
+        return rcall(cov, meths, model, X, dict(counts=counts))
 
     if skat:
         return rcall(cov, meths, model, X, dict(skat=True))
-    elif liptak:
-        return rcall(cov, meths, model, X, dict(liptak=True))
+    elif combine:
+        return rcall(cov, meths, model, X, dict(combine=combine))
     elif bumping:
         return rcall(cov, meths, model, X, dict(bumping=True))
     elif gee_args:
         corr, col = gee_args
         assert corr[:2] in ('ex', 'ar', 'in', 'un')
-        return rcall(cov, meths, model, X, {"gee.corstr": corr, "gee.idvar": col})
+        return rcall(cov, meths, model, X, {"gee.corstr": corr, "gee.idvar":
+            col, "counts": counts})
     else:
-        raise Exception('must specify one of skat/liptak/bumping/gee_args'
+        raise Exception('must specify one of skat/combine/bumping/gee_args'
                         ' or specify a mixed-effect model in lme4 syntax')
 
 def set_outlier_nan(cluster_df, n_sds):

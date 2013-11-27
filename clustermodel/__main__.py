@@ -19,15 +19,16 @@ def is_numeric(pd_series):
         return len(pd_series.unique()) > 2
     return False
 
-def run_model(clusters, covs, model, X, outlier_sds, liptak, bumping, gee_args,
-        skat):
+def run_model(clusters, covs, model, X, outlier_sds, combine, bumping, gee_args,
+        skat, counts):
     # we turn the cluster list into a pandas dataframe with columns
     # of samples and rows of probes. these must match our covariates
     cluster_dfs = [cluster_to_dataframe(cluster, columns=covs.index)
             for cluster in clusters]
         # now we want to test a model on our clustered dataset.
     res = clustered_model(covs, cluster_dfs, model, X=X, gee_args=gee_args,
-                liptak=liptak, bumping=bumping, skat=skat,
+                combine=combine, bumping=bumping, skat=skat,
+                counts=counts,
                 outlier_sds=outlier_sds)
     res['chrom'], res['start'], res['end'], res['n_probes'] = ("CHR", 1, 1, 0)
     if "cluster_id" in res.columns:
@@ -69,11 +70,11 @@ def clustermodel(fcovs, fmeth, model,
                  # clustering args
                  max_dist=500, linkage='complete', rho_min=0.3,
                  min_clust_size=2, multi_member=False,
-
+                 counts=False,
                  sep="\t",
                  X=None, X_locs=None, X_dist=None,
                  outlier_sds=None,
-                 liptak=False, bumping=False, gee_args=(), skat=False,
+                 combine=False, bumping=False, gee_args=(), skat=False,
                  png_path=None):
     # an iterable of feature objects
     feature_iter = feature_gen(fmeth, rho_min=rho_min)
@@ -85,8 +86,8 @@ def clustermodel(fcovs, fmeth, model,
                     if len(c) >= min_clust_size)
     for res in clustermodelgen(fcovs, cluster_gen, model, sep=sep,
             X=X, X_locs=X_locs, X_dist=X_dist, outlier_sds=outlier_sds,
-            liptak=liptak, bumping=bumping, gee_args=gee_args,
-            skat=skat, png_path=None):
+            combine=combine, bumping=bumping, gee_args=gee_args,
+            skat=skat, counts=counts, png_path=None):
         yield res
 
 
@@ -111,7 +112,8 @@ def groups_of(n, iterable):
 def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
                     X=None, X_locs=None, X_dist=None,
                     outlier_sds=None,
-                    liptak=False, bumping=False, gee_args=(), skat=False,
+                    combine=False, bumping=False, gee_args=(), skat=False,
+                    counts=False,
                     png_path=None):
 
     covs = pd.read_table(fcovs, index_col=0, sep=sep)
@@ -134,8 +136,8 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         Xi = pd.read_table(xopen(X), index_col=0, usecols=[0]).index
         X_probes = set([fix_name(xi) for xi in Xi])
 
-    for clusters in groups_of(100 * CPUS if X is None else
-                              10 * CPUS if X_locs is not None
+    for clusters in groups_of(200 * CPUS if X is None else
+                              8 * CPUS if X_locs is not None
                               else CPUS, cluster_gen):
 
         if not X_locs is None:
@@ -160,8 +162,8 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             r['XXprobes'] = probes
             Xvar = 'Xfull[XXprobes,,drop=FALSE]'
 
-        res = run_model(clusters, covs, model, Xvar, outlier_sds, liptak,
-                        bumping, gee_args, skat)
+        res = run_model(clusters, covs, model, Xvar, outlier_sds, combine,
+                        bumping, gee_args, skat, counts)
 
         for i, row in res.iterrows():
             row = dict(row)
@@ -221,8 +223,11 @@ def add_modelling_args(p):
     group.add_argument('--skat', action='store_true')
     group.add_argument('--gee-args',
                        help='comma-delimited correlation-structure, variable')
-    group.add_argument('--liptak', action="store_true")
+    group.add_argument('--combine', choices=('liptak', 'z-score'))
     group.add_argument('--bumping', action="store_true")
+
+    p.add_argument('--counts', action="store_true",
+            help="data is count data. model must be a mixed-effect model")
 
     p.add_argument('model',
                    help="model in R syntax, e.g. 'methylation ~ disease'")
@@ -279,7 +284,7 @@ def get_method(a):
         method = 'gee:' + a.gee_args
         a.gee_args = a.gee_args.split(",")
     else:
-        if a.liptak: method = 'liptak'
+        if a.combine: method = a.combine
         elif a.bumping: method = 'bumping'
         elif a.skat: method = 'skat'
         else:
@@ -338,10 +343,11 @@ def regional_main(args=sys.argv[1:]):
                           X_locs=a.X_locs,
                           X_dist=a.X_dist,
                           outlier_sds=a.outlier_sds,
-                          liptak=a.liptak,
+                          combine=a.combine,
                           bumping=a.bumping,
                           gee_args=a.gee_args,
                           skat=a.skat,
+                          counts=a.counts,
                           png_path=a.png_path):
         c['method'] = method if c['n_probes'] > 1 else 'lm'
         print fmt.format(**c)
@@ -369,10 +375,11 @@ def main(args=sys.argv[1:]):
                           rho_min=a.rho_min,
                           min_clust_size=a.min_cluster_size,
                           multi_member=a.multi_member,
-                          liptak=a.liptak,
+                          combine=a.combine,
                           bumping=a.bumping,
                           gee_args=a.gee_args,
                           skat=a.skat,
+                          counts=a.counts,
                           X=a.X,
                           X_locs=a.X_locs,
                           X_dist=a.X_dist,

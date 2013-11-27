@@ -20,7 +20,8 @@ def test_model():
 
     for kwargs in ({'gee_args': ('ar', 'id')},
                    {'gee_args': ('ex', 'CpG')},
-                   {'liptak': True},
+                   {'combine': 'liptak'},
+                   {'combine': 'z-score'},
                    {'bumping': True},):
 
         yield check_clustered_model, covs, meth, "methylation ~ disease", kwargs

@@ -12,5 +12,4 @@ from clustermodel import clustered_model
 from feature import feature_gen, ClusterFeature, cluster_to_dataframe
 
 from multiprocessing import cpu_count
-CPUS = cpu_count()
-
+CPUS = max(cpu_count(), 12)
