@@ -8,8 +8,8 @@ from .send_bin import send_arrays
 
 import tempfile
 r = R(max_len=5e7, return_err=False)
-r('library(clustermodelr)')
-#r('source("~/src/clustermodelr/R/clustermodelr.R");source("~/src/clustermodelr/R/combine.R")')
+#r('library(clustermodelr)')
+r('source("~/src/clustermodelr/R/clustermodelr.R");source("~/src/clustermodelr/R/combine.R")')
 
 def kwargs_to_str(kwargs):
     def convert(v):
@@ -52,7 +52,7 @@ def rcall(cov, meths, model, X=None, kwargs=None,
     if X is None:
         kwargs_str = kwargs_to_str(kwargs)
         #print >>sys.stderr, "fclust.lm(cov, meths, '%s', %s)" % (model, kwargs_str)
-        r("a <- data.frame(p=NaN, coef=NaN, covariate=NA); a <- mclust.lm(cov, meths, '%s', %s)"
+        r("a <- data.frame(p=NaN, coef=NaN, covariate=NA); a <- mclust.lm('%s', cov, meths, %s)"
                 % (model, kwargs_str))
         df = r['a']
         df['coef'] = df['coef'].astype(float)
@@ -61,8 +61,8 @@ def rcall(cov, meths, model, X=None, kwargs=None,
         return df
     else:
         kwargs_str = kwargs_to_str(kwargs)
-        #print >>sys.stderr, "mclust.lm.X(cov, meths, '%s', %s, %s)" % (model, X, kwargs_str)
-        r("a = data.frame(p=NaN, coef=NaN, covariate=NA); a <- mclust.lm.X(cov, meths, '%s', %s, %s)"
+        #print >>sys.stderr, "mclust.lm.X('%s', cov, meths, %s, %s)" % (model, X, kwargs_str)
+        r("a = data.frame(p=NaN, coef=NaN, covariate=NA); a <- mclust.lm.X('%s', cov, meths, %s, %s)"
                 % (model, X, kwargs_str))
         df = r['a']
         df['coef'] = df['coef'].astype(float)
