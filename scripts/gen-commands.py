@@ -37,9 +37,8 @@ expr_locs = "/proj/Schwartz/brentp/2013/tcga-methex/expr-probe-locs.bed"
 
 
 group = os.path.splitext(os.path.basename(covs))[0]
-sds = ""
 
-extra = "| bsub -J {name} -e logs/{name}.err -o logs/{name}.out -M 2000000"
+extra = "| bsub -J {name}.{fr} -e logs/{name}.{fr}.err -o logs/{name}.{fr}.out -M 20000000 -n 11"
 
 base_cmd = ("echo 'python -m clustermodel \"{model}\" {covs} {meth} {method} {sds}"
            " --X {expr} --X-locs {expr_locs} --X-dist 50000"
@@ -54,20 +53,23 @@ sk_model = sk_model.split()
 sk_model = sk_model[0] + " ~ " + (" + ".join(t for t in sk_model[1:] if t != "+") or "1")
 
 for expr in (orig_expr, fake_expr):
-    out = sys.argv[3] + ("fake/" if "shuff" in expr else "real/")
+    fr = "fake" if "shuff" in expr else "real"
+    out = sys.argv[3] + fr + "/"
     try:
         os.makedirs(out)
     except OSError:
         pass
+    sds = ""
 
-    for name in ("liptak", "bumping"):
+    for name in ("bumping",):
         model = base_model
         method = "--" + name
         print base_cmd.format(**locals())
 
-    print base_cmd.format(name="skat", method="--skat", model=sk_model,
-            group=group, out=out, sds=sds, covs=covs, meth=meth, extra=extra,
-            expr=expr, expr_locs=expr_locs)
+
+    #print base_cmd.format(name="skat", method="--skat", model=sk_model,
+    #        group=group, out=out, sds=sds, covs=covs, meth=meth, extra=extra,
+    #        expr=expr, expr_locs=expr_locs, fr=fr)
 
     for isds in (0, 3):
         sds = "--outlier-sds %i" % isds
@@ -81,5 +83,11 @@ for expr in (orig_expr, fake_expr):
             name = "gee-" + gee.replace(',', '-') + ("-sds_%i" % isds)
             model = base_model
             method = "--gee-args " + gee
+            print base_cmd.format(**locals())
+
+        for combine in ("liptak", "z-score"):
+            model = base_model
+            method = "--combine " + combine
+            name = "combine-" + combine + ("-sds_%i" % isds)
             print base_cmd.format(**locals())
 
