@@ -11,6 +11,9 @@ r = R(max_len=5e7, return_err=False)
 #r('library(clustermodelr)')
 r('source("~/src/clustermodelr/R/clustermodelr.R");source("~/src/clustermodelr/R/combine.R")')
 
+def ilogit(v):
+    return 1 / (1 + np.exp(-v))
+
 def kwargs_to_str(kwargs):
     def convert(v):
         if v is True: return "TRUE"
@@ -55,18 +58,20 @@ def rcall(cov, meths, model, X=None, kwargs=None,
         r("a <- data.frame(p=NaN, coef=NaN, covariate=NA); a <- mclust.lm('%s', cov, meths, %s)"
                 % (model, kwargs_str))
         df = r['a']
-        df['coef'] = df['coef'].astype(float)
         df['model'] = model
         df['p'] = df['p'].astype(float)
-        return df
     else:
         kwargs_str = kwargs_to_str(kwargs)
         #print >>sys.stderr, "mclust.lm.X('%s', cov, meths, %s, %s)" % (model, X, kwargs_str)
         r("a = data.frame(p=NaN, coef=NaN, covariate=NA); a <- mclust.lm.X('%s', cov, meths, %s, %s)"
                 % (model, X, kwargs_str))
         df = r['a']
-        df['coef'] = df['coef'].astype(float)
-        return df
+
+    df['coef'] = df['coef'].astype(float)
+    # since we're probably operating on logit transformed data
+    # we do the inverse logit and subtract 0.5 since ilogit(0) == 0.5
+    df['icoef'] = ilogit(df['coef']) - 0.5
+    return df
 
 def clustered_model(cov_df, cluster_dfs, model, X=None, gee_args=(), combine=False,
         bumping=False, skat=False, counts=False, outlier_sds=None):
