@@ -5,7 +5,7 @@ from itertools import groupby, izip_longest
 from collections import OrderedDict
 import numpy as np
 import pandas as pd
-from aclust import aclust
+from aclust import mclust, aclust
 from .plotting import plot_dmr, plot_hbar, plot_continuous
 from . import feature_gen, cluster_to_dataframe, clustered_model, CPUS
 from .clustermodel import r
@@ -67,8 +67,10 @@ def distX(dmr, expr):
 
 def clustermodel(fcovs, fmeth, model,
                  # clustering args
-                 max_dist=500, linkage='complete', rho_min=0.3,
-                 min_clust_size=2,
+                 max_dist=200, linkage='complete', rho_min=0.32,
+                 min_clust_size=1,
+                 merge_linkage=None,
+                 max_merge_dist=0,
                  counts=False,
                  sep="\t",
                  X=None, X_locs=None, X_dist=None,
@@ -79,8 +81,12 @@ def clustermodel(fcovs, fmeth, model,
     feature_iter = feature_gen(fmeth, rho_min=rho_min)
     assert min_clust_size >= 1
 
-    cluster_gen = (c for c in aclust(feature_iter, max_dist=max_dist,
-                                     linkage=linkage)
+    cluster_gen = (c for c in mclust(feature_iter,
+                                     max_dist=max_dist,
+                                     linkage=linkage,
+                                     merge_linkage=merge_linkage,
+                                     max_merge_dist=max_merge_dist
+                                     )
                     if len(c) >= min_clust_size)
     for res in clustermodelgen(fcovs, cluster_gen, model, sep=sep,
             X=X, X_locs=X_locs, X_dist=X_dist, outlier_sds=outlier_sds,
@@ -251,17 +257,25 @@ def add_expression_args(p):
 
 def add_clustering_args(p):
     cp = p.add_argument_group('clustering parameters')
-    cp.add_argument('--rho-min', type=float, default=0.3,
+    cp.add_argument('--rho-min', type=float, default=0.32,
                    help="minimum correlation to merge 2 probes")
-    cp.add_argument('--min-cluster-size', type=int, default=2,
+    cp.add_argument('--min-cluster-size', type=int, default=1,
                     help="minimum cluster size on which to run model: "
                    "must be at least 1")
     cp.add_argument('--linkage', choices=['single', 'complete'],
                     default='complete', help="linkage method")
-
-    cp.add_argument('--max-dist', default=500, type=int,
+    cp.add_argument('--max-dist', default=200, type=int,
                     help="maximum distance beyond which a probe can not be"
                     " added to a cluster")
+
+    cp.add_argument('--merge-linkage', default=0.24, type=float,
+            help='value between 0 and 1 indicating percentage of probes '
+            'that must be correlated to merge 2 clusters')
+    cp.add_argument('--max-merge-dist', default=None, type=int,
+            help='maximum integer distance between to already defined clusters'
+            ' that could be merge based on --merge-linkage. Likely this number'
+            ' is larger than max-dist. Default is 1.5 * max-dist')
+
 
 def add_misc_args(p):
     p.add_argument('--png-path',
@@ -327,7 +341,7 @@ def regional_main(args=sys.argv[1:]):
     feature_iter = feature_gen(a.methylation)
     cluster_gen = gen_clusters_from_regions(feature_iter, a.regions)
 
-    fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{method}"
+    fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{icoef}\t{n_probes}\t{model}\t{method}"
     if a.X_locs:
         fmt += "\t{Xname}\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
     print "#" + fmt.replace("}", "").replace("{", "")
@@ -358,9 +372,11 @@ def main(args=sys.argv[1:]):
     add_expression_args(p)
 
     a = p.parse_args(args)
+    if a.max_merge_dist is None:
+        a.max_merge_dist = 1.5 * a.max_dist
     method = get_method(a)
 
-    fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{covariate}\t{method}"
+    fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{icoef}\t{n_probes}\t{model}\t{covariate}\t{method}"
     if a.X_locs:
         fmt += "\t{Xname}\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
     print "#" + fmt.replace("}", "").replace("{", "")
@@ -369,6 +385,8 @@ def main(args=sys.argv[1:]):
                           linkage=a.linkage,
                           rho_min=a.rho_min,
                           min_clust_size=a.min_cluster_size,
+                          merge_linkage=a.merge_linkage,
+                          max_merge_dist=a.max_merge_dist,
                           combine=a.combine,
                           bumping=a.bumping,
                           gee_args=a.gee_args,
