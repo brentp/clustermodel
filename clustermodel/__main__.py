@@ -1,5 +1,4 @@
 import sys
-import tempfile
 import gzip
 import re
 from itertools import groupby, izip_longest
@@ -69,7 +68,7 @@ def distX(dmr, expr):
 def clustermodel(fcovs, fmeth, model,
                  # clustering args
                  max_dist=500, linkage='complete', rho_min=0.3,
-                 min_clust_size=2, multi_member=False,
+                 min_clust_size=2,
                  counts=False,
                  sep="\t",
                  X=None, X_locs=None, X_dist=None,
@@ -81,8 +80,7 @@ def clustermodel(fcovs, fmeth, model,
     assert min_clust_size >= 1
 
     cluster_gen = (c for c in aclust(feature_iter, max_dist=max_dist,
-                                     max_skip=2, linkage=linkage,
-                                     multi_member=multi_member)
+                                     linkage=linkage)
                     if len(c) >= min_clust_size)
     for res in clustermodelgen(fcovs, cluster_gen, model, sep=sep,
             X=X, X_locs=X_locs, X_dist=X_dist, outlier_sds=outlier_sds,
@@ -260,9 +258,6 @@ def add_clustering_args(p):
                    "must be at least 1")
     cp.add_argument('--linkage', choices=['single', 'complete'],
                     default='complete', help="linkage method")
-    cp.add_argument('--multi-member', default=False, action="store_true",
-                    help="if True, a probe can be a member of multiple"
-                    " clusters")
 
     cp.add_argument('--max-dist', default=500, type=int,
                     help="maximum distance beyond which a probe can not be"
@@ -374,7 +369,6 @@ def main(args=sys.argv[1:]):
                           linkage=a.linkage,
                           rho_min=a.rho_min,
                           min_clust_size=a.min_cluster_size,
-                          multi_member=a.multi_member,
                           combine=a.combine,
                           bumping=a.bumping,
                           gee_args=a.gee_args,
