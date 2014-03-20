@@ -1,4 +1,5 @@
 #
+from __future__ import print_function
 import signal
 signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
