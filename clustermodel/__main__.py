@@ -243,50 +243,50 @@ def add_modelling_args(p):
 
 def add_expression_args(p):
     ep = p.add_argument_group('optional expression parameters')
-    ep.add_argument('--X', help='file with same sample columns as methylation, '
-            'rows of probes and values of some measurement (likely expression)'
-            ' this will perform a methyl-eQTL--for each DMR, it will test '
-            'againts all rows in this methylation array. As such, it is best'
-            ' to run this on subsets of data, e.g. only looking for cis '
-            'relationships')
+    ep.add_argument('--X', help='matrix file with same sample columns as'
+       'methylation with rows of probes and values of some measurement (likely'
+       ' expression) this will perform a methyl-eQTL--for each DMR, it will'
+       ' test againts all rows in this methylation array. As such, it is best'
+       ' to run this on subsets of data, e.g. only looking for cis relationships')
     ep.add_argument('--X-locs', help="BED file with locations of probes from"
             " the first column in --X. Should have a 'probe' column header")
     ep.add_argument('--X-dist', type=int, help="only look at cis interactions"
             " between X and methylation sites with this as the maximum",
             default=100000)
 
+def add_weight_args(p):
+    wp = p.add_argument_group('weighted regression')
+    wp.add_argument('--weights', help="matrix file with of shape probes * "
+          "samples with values for weights in the regression. Likely these "
+          "would be read-counts (depth) for BS-Seq data.")
+
 def add_clustering_args(p):
     cp = p.add_argument_group('clustering parameters')
     cp.add_argument('--rho-min', type=float, default=0.32,
                    help="minimum correlation to merge 2 probes")
-    cp.add_argument('--min-cluster-size', type=int, default=1,
-                    help="minimum cluster size on which to run model: "
-                   "must be at least 1")
+    cp.add_argument('--min-cluster-size', type=int, default=1)
     cp.add_argument('--linkage', choices=['single', 'complete'],
                     default='complete', help="linkage method")
     cp.add_argument('--max-dist', default=200, type=int,
-                    help="maximum distance beyond which a probe can not be"
-                    " added to a cluster")
+                    help="never merge probes this distant")
 
     cp.add_argument('--merge-linkage', default=0.24, type=float,
             help='value between 0 and 1 indicating percentage of probes '
             'that must be correlated to merge 2 clusters')
     cp.add_argument('--max-merge-dist', default=None, type=int,
-            help='maximum integer distance between to already defined clusters'
+            help='maximum integer distance between 2 already defined clusters'
             ' that could be merge based on --merge-linkage. Likely this number'
             ' is larger than max-dist. Default is 1.5 * max-dist')
 
 
 def add_misc_args(p):
     p.add_argument('--png-path',
-                   help="path to save a png of regions with low p-values. If "
-                   "this ends with 'show', each plot will be shown in a window"
-                   " if this contains the string 'spaghetti', it will draw a "
-                   "a spaghetti plot, otherwise, it's a histogram plot")
+                   help="""path to save a png of regions with low p-values. Use
+'show' to plot in GUI. If this contains the string 'spaghetti', it will draw a
+a spaghetti plot, otherwise, it's a histogram plot""")
     p.add_argument('--outlier-sds', type=float, default=30,
             help="remove points that are more than this many standard "
-                 "deviations away from the mean (only usable with GEEs"
-                 " and mixed-models which allow missing data")
+                 "deviations away from the mean")
 
 def get_method(a):
     if a.gee_args is not None:
@@ -331,6 +331,7 @@ def regional_main(args=sys.argv[1:]):
     add_modelling_args(p)
     add_misc_args(p)
     add_expression_args(p)
+    add_weight_args(p)
 
     p.add_argument('--regions', required=True, help="BED file of regions to "
             "test", metavar="BED")
@@ -370,6 +371,7 @@ def main(args=sys.argv[1:]):
     add_clustering_args(p)
     add_misc_args(p)
     add_expression_args(p)
+    add_weight_args(p)
 
     a = p.parse_args(args)
     if a.max_merge_dist is None:
