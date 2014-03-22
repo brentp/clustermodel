@@ -4,13 +4,12 @@ library(data.table)
 set.seed(42)
 
 # TODO: test large DMR with few samples and small DMR with 10+ each.
-n_sims = 330
-n_each = 4 # number of samples from each group
-n_probes = 3
+n_sims = 1530
+n_each = 5 # number of samples from each group
+n_probes = 2
 rho = 0.21
 p_cutoff = 0.05 / 5000 * n_probes # we do fewer tests with more probes
-p_cutoff = 0.005
-effect = 0.02
+effect = 0.015
 sd = 0.015
 
 gen_samples = function(rho, n_each, n_probes, means=c(0, 0.0), sds=c(0.01, 0.01)){
@@ -36,7 +35,7 @@ name.it = function(name, i, res){
 }
 
 
-found.true = mclapply(1:(n_sims/3), function(i){
+found.true = mclapply(1:(n_sims/20), function(i){
     meth = gen_samples(rho, n_each, n_probes, means=c(-effect/2, effect/2), sds=c(sd, sd))
     covs.long = expand.covs(covs, meth)
     res = rbindlist(list(
