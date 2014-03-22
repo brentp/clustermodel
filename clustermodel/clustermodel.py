@@ -173,8 +173,8 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, weights=None, gee_args=(
     elif gee_args:
         corr, col = gee_args
         assert corr[:2] in ('ex', 'ar', 'in', 'un')
-        return rcall(cov, meths, model, X, weights=kwargs={"gee.corstr": corr, "gee.idvar":
-            col, "counts": counts})
+        return rcall(cov, meths, model, X, weights=weights,
+                kwargs={"gee.corstr": corr, "gee.idvar": col, "counts": counts})
     else:
         raise Exception('must specify one of skat/combine/bumping/gee_args'
                         ' or specify a mixed-effect model in lme4 syntax')
