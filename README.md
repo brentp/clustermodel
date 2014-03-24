@@ -58,7 +58,8 @@ always our covariate of interest (where we get the p-value).
 python -m clustermodel 'methylation ~ disease' \
           clustermodel/tests/example-covariates.txt \
           clustermodel/tests/example-methylation.txt.gz \
-          --liptak --min-cluster-size 3 | head
+          --combine liptak \
+          --min-cluster-size 3 | head
 ```
 
 The output from that looks like this:

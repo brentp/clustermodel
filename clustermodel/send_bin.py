@@ -6,8 +6,9 @@ def send_array(arr, fh):
     shape = arr.shape
     if len(shape) == 1:  # could be e.g.: (24,). we want (24, 1)
         shape = (shape[0], 1)
-
+    # send shape as int
     np.array(shape, dtype=np.int64).tofile(fh)
+    # send data as float64
     np.asarray(arr).flatten().astype(np.float64).tofile(fh)
 
 def send_arrays(arrays, fh):
