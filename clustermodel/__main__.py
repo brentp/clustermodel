@@ -18,14 +18,17 @@ def is_numeric(pd_series):
         return len(pd_series.unique()) > 2
     return False
 
-def run_model(clusters, covs, model, X, weights, outlier_sds, combine, bumping, gee_args,
+def run_model(clusters, covs, model, X, outlier_sds, combine, bumping, gee_args,
         skat, counts):
     # we turn the cluster list into a pandas dataframe with columns
     # of samples and rows of probes. these must match our covariates
     cluster_dfs = [cluster_to_dataframe(cluster, columns=covs.index)
             for cluster in clusters]
+    weight_dfs = [cluster_to_dataframe(cluster, columns=covs.index,
+                                        weights=True)
+            for cluster in clusters]
         # now we want to test a model on our clustered dataset.
-    res = clustered_model(covs, cluster_dfs, model, X=X, weights=weights,
+    res = clustered_model(covs, cluster_dfs, model, X=X, weights=weight_dfs,
                           gee_args=gee_args, combine=combine, bumping=bumping,
                           skat=skat, counts=counts, outlier_sds=outlier_sds)
     res['chrom'], res['start'], res['end'], res['n_probes'] = ("CHR", 1, 1, 0)
@@ -78,7 +81,8 @@ def clustermodel(fcovs, fmeth, model,
                  combine=False, bumping=False, gee_args=(), skat=False,
                  png_path=None):
     # an iterable of feature objects
-    feature_iter = feature_gen(fmeth, rho_min=rho_min)
+    # from here, weights are attached to the feature.
+    feature_iter = feature_gen(fmeth, rho_min=rho_min, weights=weights)
     assert min_clust_size >= 1
 
     cluster_gen = (c for c in mclust(feature_iter,
@@ -89,7 +93,7 @@ def clustermodel(fcovs, fmeth, model,
                                      )
                     if len(c) >= min_clust_size)
     for res in clustermodelgen(fcovs, cluster_gen, model, sep=sep,
-            X=X, X_locs=X_locs, X_dist=X_dist, weights=weights,
+            X=X, X_locs=X_locs, X_dist=X_dist,
             outlier_sds=outlier_sds,
             combine=combine, bumping=bumping, gee_args=gee_args,
             skat=skat, counts=counts, png_path=None):
@@ -168,7 +172,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             r['XXprobes'] = probes
             Xvar = 'Xfull[XXprobes,,drop=FALSE]'
 
-        res = run_model(clusters, covs, model, Xvar, weights, outlier_sds, combine,
+        res = run_model(clusters, covs, model, Xvar, outlier_sds, combine,
                         bumping, gee_args, skat, counts)
 
         for i, row in res.iterrows():

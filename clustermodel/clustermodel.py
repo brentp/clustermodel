@@ -40,7 +40,7 @@ def rcall(cov, meths, model, X=None, weights=None, kwargs=None,
     send_arrays(meths, bin_fh.file)
     r('meths = read.bin("%s")' % bin_fh.name)
     if weights is not None:
-        send_arrays(weights, weight_fh.name)
+        send_arrays(weights, weight_fh.file)
         r('weights = read.bin("%s")' % weight_fh.name)
     else:
         r('weights = NULL')
