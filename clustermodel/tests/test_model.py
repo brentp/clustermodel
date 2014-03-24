@@ -35,6 +35,50 @@ def test_model():
         yield (check_clustered_model, covs, meth1,
                 "methylation ~ disease + " + random_effects, {})
 
+def test_weights1():
+
+    meth = pd.read_csv(op.join(HERE, "example-meth.csv"), index_col=0).T
+    meth1 = meth.ix[1, :]
+    weights = pd.DataFrame(meth.copy())
+    weights.ix[:, :] = 1.0
+    weights1 = weights.ix[1, :]
+
+    covs = pd.read_table(op.join(HERE, "example-covariates.txt"))
+
+    for kwargs in ({'gee_args': ('ar', 'id')},
+                   {'gee_args': ('ex', 'CpG')},
+                   {'combine': 'liptak'},
+                   {'combine': 'z-score'},
+                   {'bumping': True},):
+
+        yield check_weights1, covs, meth, weights, "methylation ~ disease", kwargs
+        yield check_weights1, covs, meth1, weights1, "methylation ~ disease", kwargs
+
+    for random_effects in ("(1|CpG)", "(1|id)", "(1|id) + (1|CpG)"):
+        yield (check_weights1, covs, meth, weights,
+                "methylation ~ disease + " + random_effects, {})
+
+        yield (check_weights1, covs, meth1, weights1,
+                "methylation ~ disease + " + random_effects, {})
+
+def check_weights1(covs, meth, weights, model, kwargs):
+
+    res = clustered_model(covs, meth, model, **kwargs)
+    resw = clustered_model(covs, meth, model, weights=weights, **kwargs)
+
+    for k in 'p model covariate coef'.split():
+        assert k in res, res
+        assert k in resw, resw
+        if not 'bumping' in kwargs or k in ('model', 'covariate'):
+
+            for i in range(len(res[k])):
+                val, valw = res[k][i], resw[k][i]
+                eq = abs(val - valw) < 1e-4 if isinstance(val, float) \
+                                            else val == valw
+                assert eq or (np.isnan(res[k][i]) and np.isnan(resw[k][i])),\
+                         (res[k][i], resw[k][i], k, i)
+
+    assert ("|" in model) == ("|" in res['model'][0]), (model, res['model'][0])
 
 def check_clustered_model(covs, meth, model, kwargs):
 

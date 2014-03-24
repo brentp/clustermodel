@@ -40,6 +40,7 @@ def rcall(cov, meths, model, X=None, weights=None, kwargs=None,
     send_arrays(meths, bin_fh.file)
     r('meths = read.bin("%s")' % bin_fh.name)
     if weights is not None:
+
         send_arrays(weights, weight_fh.file)
         r('weights = read.bin("%s")' % weight_fh.name)
     else:
@@ -154,7 +155,8 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, weights=None, gee_args=(
     meths = cluster_dfs if not isinstance(cluster_dfs, (pd.DataFrame,
                                                         pd.Series)) \
                         else [cluster_dfs]
-    weights = weights if not isinstance(weights, (pd.DataFrame, pd.Series)) \
+    if weights is not None:
+        weights = weights if not isinstance(weights, (pd.DataFrame, pd.Series)) \
                       else [weights]
 
     if outlier_sds > 0:

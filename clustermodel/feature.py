@@ -77,10 +77,13 @@ def feature_gen(fname, row_handler=row_handler, feature_class=ClusterFeature, se
         weights = reader(weights, header=False, sep=sep)
     for i, toks in enumerate(reader(fname, header=False, sep=sep)):
         if i == 0 and skip_first_row:
-            next(weights)
+            if weights is not None: next(weights)
             continue
-        chrom, start, end, weight_vals = row_handler(next(weights))
         vals = row_handler(toks)
-        assert chrom == vals[0]
-        assert start == vals[1], (vals[1], start)
+        if weights is not None:
+            chrom, start, end, weight_vals = row_handler(next(weights))
+            assert chrom == vals[0]
+            assert start == vals[1], (vals[1], start)
+        else:
+            weight_vals = None
         yield feature_class(*vals, **{'rho_min': rho_min, 'weights':weight_vals} )

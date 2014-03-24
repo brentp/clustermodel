@@ -24,9 +24,12 @@ def run_model(clusters, covs, model, X, outlier_sds, combine, bumping, gee_args,
     # of samples and rows of probes. these must match our covariates
     cluster_dfs = [cluster_to_dataframe(cluster, columns=covs.index)
             for cluster in clusters]
-    weight_dfs = [cluster_to_dataframe(cluster, columns=covs.index,
+    if clusters[0][0].weights is not None:
+        weight_dfs = [cluster_to_dataframe(cluster, columns=covs.index,
                                         weights=True)
             for cluster in clusters]
+    else:
+        weight_dfs = None
         # now we want to test a model on our clustered dataset.
     res = clustered_model(covs, cluster_dfs, model, X=X, weights=weight_dfs,
                           gee_args=gee_args, combine=combine, bumping=bumping,
