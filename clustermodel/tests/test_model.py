@@ -112,19 +112,22 @@ def check_clustered_model(covs, meth, model, kwargs):
 
     assert ("|" in model) == ("|" in res['model'][0]), (model, res['model'][0])
 
-
-def test_clustered_model():
-
-    # test for 20 samples and 5 CpGs
-
+def _make_data(ddiff=0):
     covs = pd.DataFrame({'age': range(1, 21), 'sex': ['M'] * 10 + ['F'] * 10,
         'disease': [True] * 5 + [False] * 5 + [True] * 5 + [False] * 5})
     covs.index = ['sample_%i' % i for i in range(1, 21)]
 
-    meth = pd.DataFrame(np.random.randn(5, 20), index = ["chr1:%i" % (100 * i)
+    meth = pd.DataFrame(np.abs(np.random.randn(5, 20)), index = ["chr1:%i" % (100 * i)
         for i in range(1, 6)])
-
     meth.columns = list(covs.index)
+    meth.ix[:, covs.index[covs.disease]] += ddiff
+
+    return covs, meth
+
+def test_clustered_model():
+
+    # test for 20 samples and 5 CpGs
+    covs, meth = _make_data()
 
     model = "methylation ~ disease + (1|id)"
 
@@ -141,6 +144,51 @@ def test_clustered_model():
             fh.flush()
             r = clustered_model(covs, meth, model, X="'%s'" % fh.name)
             yield check_clustered_df, r, model, exp
+
+def test_weighted_model():
+
+    covs, meth = _make_data(1.0)
+    weights = meth.copy()
+    weights.ix[:, :] = 1
+    dis = covs.index[covs.disease == True]
+    weights.ix[:, dis] = 0.25
+
+    # so now we have a huge difference, but we down-weight
+    # all of the cases, so we should always have a larger p-value
+    # with weights
+    model = "methylation ~ disease"
+    mix_model = "methylation ~ disease + (1|CpG)"
+    yield check_weight_m, covs, meth, weights, model, {'combine': 'liptak'}
+    yield check_weight_m, covs, meth, weights, model, {'combine': 'z-score'}
+    #yield check_weight_m, covs, meth, weights, model, {'gee_args': ('ar', 'id')}
+    #yield check_weight_m, covs, meth, weights, model, {'gee_args': ('ex', 'CpG')}
+    #yield check_weight_m, covs, meth, weights, model, {'bumping': True}
+    #yield check_weight_m, covs, meth, weights, mix_model, {}
+
+
+    meth.ix[4, 1] = np.nan
+    yield check_weight_m, covs, meth, weights, model, {'combine': 'liptak'}
+    yield check_weight_m, covs, meth, weights, model, {'combine': 'z-score'}
+    #yield check_weight_m, covs, meth, weights, model, {'bumping': True}
+
+
+def check_weight_m(covs, meth, weights, model, kwargs):
+
+    res = clustered_model(covs, meth, model, **kwargs)
+    resw = clustered_model(covs, meth, model, weights=weights, **kwargs)
+    import sys
+    print sys.stderr, res
+    print sys.stderr, resw
+
+    for i in range(len(res)):
+        assert resw['p'][i] > res['p'][i], (
+                'p', i, resw['p'][i], res['p'][i])
+        assert resw['coef'][i] <= res['coef'][i], (
+                'coef', i, resw['coef'][i], res['coef'][i])
+
+
+
+
 
 
 def check_clustered(r, model):
