@@ -35,7 +35,7 @@ def test_model():
         yield (check_clustered_model, covs, meth1,
                 "methylation ~ disease + " + random_effects, {})
 
-def test_weights1():
+def test_weights():
 
     meth = pd.read_csv(op.join(HERE, "example-meth.csv"), index_col=0).T
     meth1 = meth.ix[1, :]
@@ -43,10 +43,14 @@ def test_weights1():
     weights.ix[:, :] = 1.0
     weights1 = weights.ix[1, :]
 
+    weights_diff = weights.copy()
+    weights_diff.ix[:, :36] = 10.0
+
+
     covs = pd.read_table(op.join(HERE, "example-covariates.txt"))
 
     for kwargs in ({'gee_args': ('ar', 'id')},
-                   {'gee_args': ('ex', 'CpG')},
+            #       {'gee_args': ('ex', 'CpG')},
                    {'combine': 'liptak'},
                    {'combine': 'z-score'},
                    {'bumping': True},):
@@ -54,12 +58,29 @@ def test_weights1():
         yield check_weights1, covs, meth, weights, "methylation ~ disease", kwargs
         yield check_weights1, covs, meth1, weights1, "methylation ~ disease", kwargs
 
+        yield check_weights_diff, covs, meth, weights_diff, "methylation ~ disease", kwargs
+
     for random_effects in ("(1|CpG)", "(1|id)", "(1|id) + (1|CpG)"):
         yield (check_weights1, covs, meth, weights,
                 "methylation ~ disease + " + random_effects, {})
 
         yield (check_weights1, covs, meth1, weights1,
                 "methylation ~ disease + " + random_effects, {})
+
+        yield (check_weights_diff, covs, meth, weights_diff,
+                "methylation ~ disease + " + random_effects, {})
+
+def check_weights_diff(covs, meth, weights, model, kwargs):
+    res = clustered_model(covs, meth, model, **kwargs)
+    resw = clustered_model(covs, meth, model, weights=weights, **kwargs)
+
+    for k in 'p coef'.split():
+        for i in range(len(res[k])):
+            assert kwargs.get('bumping') or res[k][i] != resw[k][i], (k, i, res[k][i], resw[k][i])
+
+    for k in 'covariate model'.split():
+        for i in range(len(res[k])):
+            assert res[k][i] == resw[k][i]
 
 def check_weights1(covs, meth, weights, model, kwargs):
 
