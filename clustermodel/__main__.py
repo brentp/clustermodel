@@ -334,30 +334,37 @@ def gen_clusters_from_regions(feature_iter, regions):
         yield list(cluster)
 
 
-def regional_main(args=sys.argv[1:]):
+def main(args=sys.argv[1:]):
     import argparse
     p = argparse.ArgumentParser(__doc__)
+
     add_modelling_args(p)
+    if not "--regions" in args:
+        add_clustering_args(p)
+    else:
+        # want to specify existing regions, not use found ones.
+        p.add_argument('--regions', required=True,
+                help="BED file of regions to test", metavar="BED")
+
     add_misc_args(p)
     add_expression_args(p)
     add_weight_args(p)
 
-    p.add_argument('--regions', required=True, help="BED file of regions to "
-            "test", metavar="BED")
-
     a = p.parse_args(args)
+    if not "--regions" in args and a.max_merge_dist is None:
+        a.max_merge_dist = 1.5 * a.max_dist
     method = get_method(a)
 
-    feature_iter = feature_gen(a.methylation)
-    cluster_gen = gen_clusters_from_regions(feature_iter, a.regions)
-
-    fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{icoef}\t{n_probes}\t{model}\t{method}"
+    fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{icoef}\t{n_probes}\t{model}\t{covariate}\t{method}"
     if a.X_locs:
         fmt += "\t{Xname}\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
     print "#" + fmt.replace("}", "").replace("{", "")
 
-
-    for c in clustermodelgen(a.covs, cluster_gen, a.model,
+    if "--regions" in args:
+        #     fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{icoef}\t{n_probes}\t{model}\t{method}"
+        feature_iter = feature_gen(a.methylation)
+        cluster_gen = gen_clusters_from_regions(feature_iter, a.regions)
+        for c in clustermodelgen(a.covs, cluster_gen, a.model,
                           X=a.X,
                           X_locs=a.X_locs,
                           X_dist=a.X_dist,
@@ -369,30 +376,10 @@ def regional_main(args=sys.argv[1:]):
                           skat=a.skat,
                           counts=a.counts,
                           png_path=a.png_path):
-        c['method'] = method if c['n_probes'] > 1 else 'lm'
-        print fmt.format(**c)
-
-
-def main(args=sys.argv[1:]):
-    import argparse
-    p = argparse.ArgumentParser(__doc__)
-
-    add_modelling_args(p)
-    add_clustering_args(p)
-    add_misc_args(p)
-    add_expression_args(p)
-    add_weight_args(p)
-
-    a = p.parse_args(args)
-    if a.max_merge_dist is None:
-        a.max_merge_dist = 1.5 * a.max_dist
-    method = get_method(a)
-
-    fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{icoef}\t{n_probes}\t{model}\t{covariate}\t{method}"
-    if a.X_locs:
-        fmt += "\t{Xname}\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
-    print "#" + fmt.replace("}", "").replace("{", "")
-    for c in clustermodel(a.covs, a.methylation, a.model,
+            c['method'] = method if c['n_probes'] > 1 else 'lm'
+            print fmt.format(**c)
+    else:
+        for c in clustermodel(a.covs, a.methylation, a.model,
                           max_dist=a.max_dist,
                           linkage=a.linkage,
                           rho_min=a.rho_min,
@@ -410,8 +397,8 @@ def main(args=sys.argv[1:]):
                           weights=a.weights,
                           outlier_sds=a.outlier_sds,
                           png_path=a.png_path):
-        c['method'] = method if c['n_probes'] > 1 else 'lm'
-        print fmt.format(**c)
+            c['method'] = method if c['n_probes'] > 1 else 'lm'
+            print fmt.format(**c)
 
 if __name__ == "__main__":
     import sys
@@ -422,7 +409,4 @@ if __name__ == "__main__":
         sys.exit(simulate.main(sys.argv[2:]))
 
     # want to specify existing regions, not use found ones.
-    if len(sys.argv) > 1 and "--regions" in sys.argv[1:]:
-        sys.exit(regional_main(sys.argv[1:]))
-
     main()

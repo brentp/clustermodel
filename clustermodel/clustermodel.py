@@ -9,8 +9,8 @@ from .send_bin import send_arrays
 import tempfile
 r = R(max_len=5e7, return_err=False)
 #r('library(clustermodelr)')
-#r('source("~/src/clustermodelr/R/clustermodelr.R");source("~/src/clustermodelr/R/combine.R")')
-r('source("/usr/local/src/clustermodelr/R/clustermodelr.R");source("/usr/local/src/clustermodelr/R/combine.R")')
+r('source("~/src/clustermodelr/R/clustermodelr.R");source("~/src/clustermodelr/R/combine.R")')
+#r('source("/usr/local/src/clustermodelr/R/clustermodelr.R");source("/usr/local/src/clustermodelr/R/combine.R")')
 
 def ilogit(v):
     return 1 / (1 + np.exp(-v))
