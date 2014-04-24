@@ -5,7 +5,7 @@ from itertools import groupby, izip_longest
 from collections import OrderedDict
 import numpy as np
 import pandas as pd
-from aclust import mclust, aclust
+from aclust import mclust
 from .plotting import plot_dmr, plot_hbar, plot_continuous
 from . import feature_gen, cluster_to_dataframe, clustered_model, CPUS
 from .clustermodel import r
