@@ -246,8 +246,8 @@ def add_modelling_args(p):
     #        help="y is count data. model must be a mixed-effect model .e.g:"
     #        "expression ~ ")
     p.add_argument('--betareg', action="store_true",
-            help="use beta-regression in which case `methylation` should be
-            the ratio and --weights should be the read-depths.")
+            help="use beta-regression in which case `methylation` should be"
+            " the ratio and --weights should be the read-depths.")
 
     p.add_argument('model',
                    help="model in R syntax, e.g. 'methylation ~ disease'")
@@ -377,7 +377,7 @@ def main(args=sys.argv[1:]):
 
     if "--regions" in args:
         #     fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{icoef}\t{n_probes}\t{model}\t{method}"
-        feature_iter = feature_gen(a.methylation)
+        feature_iter = feature_gen(a.methylation, weights=a.weights)
         cluster_gen = gen_clusters_from_regions(feature_iter, a.regions)
         for c in clustermodelgen(a.covs, cluster_gen, a.model,
                           X=a.X,
