@@ -663,8 +663,9 @@ class R(object): # "del r.XXX" fails on FePy-r7 (IronPython 1.1 on .NET 2.0.5072
         head = rlt.startswith(head) and len(head) or len(head) - 1 
         tail = rlt.endswith(self.newline) and len(rlt) - len(self.newline) or len(rlt) - len(self.newline) + 1 # - len('"')
         try:
-            rlt = eval(eval(rlt[head:tail])) # The inner eval remove quotes and recover escaped characters.
-        except:
+            rlt = eval(eval(rlt[head:tail].replace(",NA,", ",\\\"nan\\\","))) # The inner eval remove quotes and recover escaped characters.
+        except Exception, e:
+            sys.stderr.write(str(e))
             raise RError(rlt)
         return rlt
 
