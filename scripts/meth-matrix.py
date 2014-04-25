@@ -10,7 +10,8 @@ import os.path as op
 import re
 
 class Row(object):
-    __slots__ = ('chrom', 'start', 'end', 'value', 'count', 'source')
+    __slots__ = ('chrom', 'start', 'end', 'value', 'count', 'source',
+    'methylated')
 
     def __init__(self, toks, source=None):
         self.chrom = toks[0]
@@ -19,6 +20,7 @@ class Row(object):
 
         self.start, self.end = int(toks[1]), int(toks[2])
         self.count = int(toks[4]) + int(toks[5])
+        self.methylated = toks[4]
         self.value = "%.3f" % (float(toks[4]) / self.count)
         self.count = str(self.count)
         self.source = source
@@ -38,9 +40,10 @@ def bed_merge(row_iterables, sources):
         present = dict((c.source, c) for c in cgs)
 
         # if a file doesn't have a record for here, just append 0
-        values = [(present[s].value if s in present else 'NA') for s in sources]
+        values = [(present[s].value if s in present else '') for s in sources]
         counts = [(present[s].count if s in present else '0') for s in sources]
-        yield cg.chrom, cg.start, cg.end, values, counts
+        meths = [(present[s].methylated if s in present else '0') for s in sources]
+        yield cg.chrom, cg.start, cg.end, values, counts, meths
 
 def gen_iterable(fname, source_from_fname):
     source = source_from_fname(fname)
@@ -59,6 +62,7 @@ def main(prefix, name_re, min_samples, methylation_files):
     name_re = re.compile(r"%s" % name_re)
     if not prefix.endswith((".", "/")): prefix += "."
     fhm = nopen('{prefix}methylation.txt.gz'.format(prefix=prefix), 'w')
+    fhme = nopen('{prefix}methylated.txt.gz'.format(prefix=prefix), 'w')
     fhc = nopen('{prefix}counts.txt.gz'.format(prefix=prefix), 'w')
 
     def source_from_fname(fname):
@@ -73,12 +77,15 @@ def main(prefix, name_re, min_samples, methylation_files):
     fmt = "{chrom}:{start}\t{vals}\n"
     fhm.write("probe\t%s" % "\t".join(sources) + "\n")
     fhc.write("probe\t%s" % "\t".join(sources) + "\n")
-    for chrom, start, end, values, counts in bed_merge(iterables, sources):
+    fhme.write("probe\t%s" % "\t".join(sources) + "\n")
+    for chrom, start, end, values, counts, meths in bed_merge(iterables, sources):
         if sum(tryfloat(v) > 0 for v in values) < min_samples: continue
         vals = "\t".join(values)
         fhm.write(fmt.format(chrom=chrom, start=start, vals=vals))
         counts = "\t".join(counts)
         fhc.write(fmt.format(chrom=chrom, start=start, vals=counts))
+        meths = "\t".join(meths)
+        fhme.write(fmt.format(chrom=chrom, start=start, vals=meths))
 
 def tryfloat(v):
     try: return float(v)
