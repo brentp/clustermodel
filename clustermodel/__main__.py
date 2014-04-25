@@ -152,7 +152,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         Xi = pd.read_table(xopen(X), index_col=0, usecols=[0]).index
         X_probes = set([fix_name(xi) for xi in Xi])
 
-    for clusters in groups_of(20 * CPUS if X is None else
+    for clusters in groups_of(200 * CPUS if X is None else
                               8 * CPUS if X_locs is not None
                               else CPUS, cluster_gen):
 

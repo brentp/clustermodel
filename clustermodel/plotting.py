@@ -105,8 +105,11 @@ def plot_dmr(covs, cluster_df, covariate, chrom, res, png):
     from pandas.tools.plotting import parallel_coordinates
 
     cdf = cluster_df.T
-    cdf.columns = ['%s:%s' % (chrom, "{:,}".format(p)) for p in cdf.columns]
-    cdf = 1 / (1 + np.exp(-cdf))
+    try:
+        cdf.columns = ['%s:%s' % (chrom, "{:,}".format(p)) for p in cdf.columns]
+    except ValueError:
+        cdf.columns = list(cdf.columns)
+    #cdf = 1 / (1 + np.exp(-cdf))
     cdf['group'] = getattr(covs, covariate)
 
     ax = plt.gca()
