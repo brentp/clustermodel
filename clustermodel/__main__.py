@@ -152,7 +152,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         Xi = pd.read_table(xopen(X), index_col=0, usecols=[0]).index
         X_probes = set([fix_name(xi) for xi in Xi])
 
-    for clusters in groups_of(200 * CPUS if X is None else
+    for clusters in groups_of(50 * CPUS if X is None else
                               8 * CPUS if X_locs is not None
                               else CPUS, cluster_gen):
 
@@ -220,6 +220,7 @@ def plot_res(res, png_path, covs, covariate, cluster_df):
         plt.savefig(png)
     else:
         plt.show()
+    plt.close()
 
 
 def main_example():
@@ -242,9 +243,8 @@ def add_modelling_args(p):
     group.add_argument('--combine', choices=('liptak', 'z-score'))
     group.add_argument('--bumping', action="store_true")
 
-    #p.add_argument('--counts', action="store_true",
-    #        help="y is count data. model must be a mixed-effect model .e.g:"
-    #        "expression ~ ")
+    p.add_argument('--counts', action="store_true",
+            help="y is count data. model must be a mixed-effect model")
     p.add_argument('--betareg', action="store_true",
             help="use beta-regression in which case `methylation` should be"
             " the ratio and --weights should be the read-depths.")
@@ -393,7 +393,7 @@ def main(args=sys.argv[1:]):
                           betareg=a.betareg,
                           gee_args=a.gee_args,
                           skat=a.skat,
-                          counts=False, #a.counts,
+                          counts=a.counts,
                           png_path=a.png_path):
             c['method'] = get_method(a,  c['n_probes'])
             print(fmt.format(**c))
@@ -410,7 +410,7 @@ def main(args=sys.argv[1:]):
                           betareg=a.betareg,
                           gee_args=a.gee_args,
                           skat=a.skat,
-                          counts=False, #a.counts,
+                          counts=a.counts,
                           X=a.X,
                           X_locs=a.X_locs,
                           X_dist=a.X_dist,
