@@ -101,7 +101,7 @@ def clustermodel(fcovs, fmeth, model,
             X=X, X_locs=X_locs, X_dist=X_dist,
             outlier_sds=outlier_sds,
             combine=combine, bumping=bumping, betareg=betareg,
-            gee_args=gee_args, skat=skat, counts=counts, png_path=None):
+            gee_args=gee_args, skat=skat, counts=counts, png_path=png_path):
         yield res
 
 
@@ -128,7 +128,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
                     weights=None,
                     outlier_sds=None,
                     combine=False, bumping=False,
-                    betereg=False, gee_args=(), skat=False,
+                    betareg=False, gee_args=(), skat=False,
                     counts=False,
                     png_path=None):
 
@@ -152,7 +152,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         Xi = pd.read_table(xopen(X), index_col=0, usecols=[0]).index
         X_probes = set([fix_name(xi) for xi in Xi])
 
-    for clusters in groups_of(200 * CPUS if X is None else
+    for clusters in groups_of(20 * CPUS if X is None else
                               8 * CPUS if X_locs is not None
                               else CPUS, cluster_gen):
 
@@ -161,7 +161,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             # here, we take any X probe that's associated with any single
             # cluster and test it against all clusters. This tends to work out
             # because the clusters are sorted by location and it helps
-            # parallelization. 
+            # parallelization.
             for cluster in clusters:
                 chrom = cluster[0].group
                 start, end = cluster[0].start, cluster[-1].end
@@ -180,16 +180,16 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
 
         res = run_model(clusters, covs, model, Xvar, outlier_sds, combine,
                         bumping, betareg, gee_args, skat, counts)
-
+        j = 0
         for i, row in res.iterrows():
             row = dict(row)
             if X_locs is not None:
                 distX(row, dict(X_locs.ix[row['X'], :]))
             yield row
-            if row['p'] < 1e-4 and png_path:
-                cluster_df = cluster_to_dataframe(clusters[i], columns=covs.index)
+            if row['p'] < 1e-5 and png_path:
+                cluster_df = cluster_to_dataframe(clusters[j], columns=covs.index)
                 plot_res(row, png_path, covs, covariate, cluster_df)
-
+            j += 1
 
 
 def plot_res(res, png_path, covs, covariate, cluster_df):
@@ -304,7 +304,7 @@ a spaghetti plot, otherwise, it's a histogram plot""")
             help="remove points that are more than this many standard "
                  "deviations away from the mean")
 
-def get_method(a):
+def get_method(a, n_probes=None):
     if a.gee_args is not None:
         method = 'gee:' + a.gee_args
         a.gee_args = a.gee_args.split(",")
@@ -312,13 +312,17 @@ def get_method(a):
         if a.combine:
             method = a.combine
             if a.betareg:
-                method += "/beta-regression"
+                if n_probes > 1:
+                    method += "/beta-regression"
+                else:
+                    method = "beta-regression"
         elif a.bumping: method = 'bumping'
         elif a.skat: method = 'skat'
         else:
             assert "|" in a.model
             method = "mixed-model"
-
+    if n_probes == 1 and method != "beta-regression":
+        method = "lm"
     return method
 
 def gen_clusters_from_regions(feature_iter, regions):
@@ -368,7 +372,6 @@ def main(args=sys.argv[1:]):
         sys.exit(p.print_usage())
     if not "--regions" in args and a.max_merge_dist is None:
         a.max_merge_dist = 1.5 * a.max_dist
-    method = get_method(a)
 
     fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{icoef}\t{n_probes}\t{model}\t{covariate}\t{method}"
     if a.X_locs:
@@ -392,7 +395,7 @@ def main(args=sys.argv[1:]):
                           skat=a.skat,
                           counts=False, #a.counts,
                           png_path=a.png_path):
-            c['method'] = method if c['n_probes'] > 1 else 'lm'
+            c['method'] = get_method(a,  c['n_probes'])
             print(fmt.format(**c))
     else:
         for c in clustermodel(a.covs, a.methylation, a.model,
@@ -414,7 +417,7 @@ def main(args=sys.argv[1:]):
                           weights=a.weights,
                           outlier_sds=a.outlier_sds,
                           png_path=a.png_path):
-            c['method'] = method if c['n_probes'] > 1 else 'lm'
+            c['method'] = get_method(a,  c['n_probes'])
             print(fmt.format(**c))
 
 if __name__ == "__main__":

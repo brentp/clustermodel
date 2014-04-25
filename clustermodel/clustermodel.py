@@ -65,7 +65,11 @@ def rcall(cov, meths, model, X=None, weights=None, kwargs=None,
         #print >>sys.stderr, "fclust.lm(cov, meths, '%s', %s)" % (model, kwargs_str)
         r("a <- data.frame(p=NaN, coef=NaN, covariate=NA); a <- mclust.lm('%s', cov, meths, weights=weights, %s)"
                 % (model, kwargs_str))
-        df = r['a']
+        try:
+            df = r['a']
+        except Exception, e:
+            sys.stderr.write("%s\n...\n%s" % (str(e)[:1000], str(e)[-1000:]))
+            raise Exception('error getting data from R')
         df['model'] = model
         df['p'] = df['p'].astype(float)
     else:
@@ -158,7 +162,6 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, weights=None, gee_args=(
                                                         pd.Series)) \
                         else [cluster_dfs]
     if weights is not None:
-        assert not betareg
         weights = weights if not isinstance(weights, (pd.DataFrame, pd.Series)) \
                       else [weights]
 
@@ -166,6 +169,7 @@ def clustered_model(cov_df, cluster_dfs, model, X=None, weights=None, gee_args=(
         [set_outlier_nan(cluster_df, outlier_sds) for cluster_df in meths]
 
     if betareg:
+        assert weights is not None
         return rcall(cov, meths, model, X, weights=weights,
                 kwargs={'combine': combine, 'betareg': True})
 
