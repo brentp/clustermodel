@@ -83,7 +83,6 @@ def plot_hbar(covs, cluster_df, covariate, chrom, res, png):
 
 def plot_continuous(covs, cluster_df, covariate, chrom, res, png):
     from matplotlib import pyplot as plt
-    import numpy as np
 
     fig, axes = plt.subplots(ncols=cluster_df.shape[0])
     cdf = cluster_df.T
@@ -99,10 +98,10 @@ def plot_continuous(covs, cluster_df, covariate, chrom, res, png):
     return fig
 
 
-def plot_dmr(covs, cluster_df, covariate, chrom, res, png):
+def plot_dmr(covs, cluster_df, covariate, chrom, res, png, weights_df=None):
     from matplotlib import pyplot as plt
-    import numpy as np
     from pandas.tools.plotting import parallel_coordinates
+    colors = ('#764AE7', '#E81C0E')
 
     cdf = cluster_df.T
     try:
@@ -118,13 +117,25 @@ def plot_dmr(covs, cluster_df, covariate, chrom, res, png):
         ax = parallel_coordinates(cdf, 'group', ax=ax)
         ax.get_legend().set_visible(False)
     else:
-        ax = parallel_coordinates(cdf, 'group', colors=('#764AE7', '#E81C0E'),
-                ax=ax)
+        ax = parallel_coordinates(cdf, 'group', colors=colors, ax=ax)
         lbls = ax.get_legend().get_texts()
 
         for lbl in lbls:
             lbl.set_text(covariate + ' ' + lbl.get_text())
 
+    if weights_df is not None:
+        W = weights_df.T
+        W.columns = cdf.columns[:-1]
+
+        for icol, cname in enumerate(W.columns):
+            for j, g in enumerate(cdf['group'].unique()):
+                ax.scatter([icol] * sum(cdf['group'] == g),
+                           cdf.ix[cdf['group'] == g, icol],
+                           edgecolors=colors[j],
+                           facecolors=colors[j],
+                           s=W.ix[cdf['group'] == g, icol])
+        vals = ax.get_xlim()
+        ax.set_xlim(vals[0] - 0.05, vals[1] + 0.05)
     if len(cdf.columns) > 6:
         ax.set_xticklabels([x.get_text() for x in ax.get_xticklabels()],
                           rotation=10)

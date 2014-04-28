@@ -125,7 +125,6 @@ def groups_of(n, iterable):
 
 def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
                     X=None, X_locs=None, X_dist=None,
-                    weights=None,
                     outlier_sds=None,
                     combine=False, bumping=False,
                     betareg=False, gee_args=(), skat=False,
@@ -152,6 +151,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         Xi = pd.read_table(xopen(X), index_col=0, usecols=[0]).index
         X_probes = set([fix_name(xi) for xi in Xi])
 
+    # weights are attached to the feature
     for clusters in groups_of(50 * CPUS if X is None else
                               8 * CPUS if X_locs is not None
                               else CPUS, cluster_gen):
@@ -188,11 +188,16 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             yield row
             if row['p'] < 1e-5 and png_path:
                 cluster_df = cluster_to_dataframe(clusters[j], columns=covs.index)
-                plot_res(row, png_path, covs, covariate, cluster_df)
+                weights_df = None
+                if clusters[j][0].weights is not None:
+                    weights_df = cluster_to_dataframe(clusters[j],
+                            columns=covs.index, weights=True)
+
+                plot_res(row, png_path, covs, covariate, cluster_df, weights_df)
             j += 1
 
 
-def plot_res(res, png_path, covs, covariate, cluster_df):
+def plot_res(res, png_path, covs, covariate, cluster_df, weights_df=None):
     from matplotlib import pyplot as plt
     from mpltools import style
     style.use('ggplot')
@@ -211,7 +216,8 @@ def plot_res(res, png_path, covs, covariate, cluster_df):
         f = plt.figure(figsize=(11, 4))
         ax = f.add_subplot(1, 1, 1)
         if 'spaghetti' in png_path:
-            plot_dmr(covs, cluster_df, covariate, res['chrom'], res, png)
+            plot_dmr(covs, cluster_df, covariate, res['chrom'], res, png,
+                    weights_df)
         else:
             plot_hbar(covs, cluster_df, covariate, res['chrom'], res, png)
         plt.title('p-value: %.3g %s: %.3f' % (res['p'], covariate, res['coef']))
@@ -386,7 +392,6 @@ def main(args=sys.argv[1:]):
                           X=a.X,
                           X_locs=a.X_locs,
                           X_dist=a.X_dist,
-                          weights=a.weights,
                           outlier_sds=a.outlier_sds,
                           combine=a.combine,
                           bumping=a.bumping,
