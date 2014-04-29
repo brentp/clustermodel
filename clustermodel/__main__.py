@@ -380,6 +380,8 @@ def main(args=sys.argv[1:]):
         a.max_merge_dist = 1.5 * a.max_dist
 
     fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{icoef}\t{n_probes}\t{model}\t{covariate}\t{method}"
+    if a.betareg:
+        fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{covariate}\t{method}"
     if a.X_locs:
         fmt += "\t{Xname}\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
     print("#" + fmt.replace("}", "").replace("{", ""))
