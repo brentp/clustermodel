@@ -53,6 +53,7 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
     ax.set_ylim(dmin, dmax)
     ax.set_xticks(positions)
     ax.set_xlim(-0.5, max(positions) + 0.5)
+    ax.set_ylim(ymin=0)
     if chrom: chrom += ":"
     if isinstance(classes[0], int):
         lbls = ["%s%s" % (chrom, "{:,}".format(i)) for i in classes]
@@ -60,6 +61,7 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
         lbls = [str(s) for s in classes]
     ax.set_xticklabels(lbls,
             rotation=15 if len(classes) > 8 else 0)
+    ax.set_ylim(ymin=0)
     return shape1, shape2
 
 def plot_hbar(covs, cluster_df, covariate, chrom, res, png):
@@ -128,7 +130,7 @@ def plot_dmr(covs, cluster_df, covariate, chrom, res, png, weights_df=None):
         W.columns = cdf.columns[:-1]
 
         for icol, cname in enumerate(W.columns):
-            for j, g in enumerate(cdf['group'].unique()):
+            for j, g in enumerate(set(cdf['group'])):
                 ax.scatter([icol] * sum(cdf['group'] == g),
                            cdf.ix[cdf['group'] == g, icol],
                            edgecolors=colors[j],
