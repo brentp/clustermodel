@@ -61,7 +61,6 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
         lbls = [str(s) for s in classes]
     ax.set_xticklabels(lbls,
             rotation=15 if len(classes) > 8 else 0)
-    ax.set_ylim(ymin=0)
     return shape1, shape2
 
 def plot_hbar(covs, cluster_df, covariate, chrom, res, png):
