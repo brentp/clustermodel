@@ -186,7 +186,8 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             if X_locs is not None:
                 distX(row, dict(X_locs.ix[row['X'], :]))
             yield row
-            if row['p'] < 1e-5 and png_path:
+            # blech. steal regions since we often want to plot everything.
+            if (row['p'] < 1e-4 or "--regions" in sys.argv) and png_path:
                 cluster_df = cluster_to_dataframe(clusters[j], columns=covs.index)
                 weights_df = None
                 if clusters[j][0].weights is not None:
@@ -215,7 +216,7 @@ def plot_res(res, png_path, covs, covariate, cluster_df, weights_df=None):
     else:
         f = plt.figure(figsize=(11, 4))
         ax = f.add_subplot(1, 1, 1)
-        if 'spaghetti' in png_path:
+        if 'spaghetti' in png_path and cluster_df.shape[0] > 1:
             plot_dmr(covs, cluster_df, covariate, res['chrom'], res, png,
                     weights_df)
         else:

@@ -53,7 +53,7 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
     ax.set_ylim(dmin, dmax)
     ax.set_xticks(positions)
     ax.set_xlim(-0.5, max(positions) + 0.5)
-    ax.set_ylim(ymin=0)
+    #ax.set_ylim(ymin=0)
     if chrom: chrom += ":"
     if isinstance(classes[0], int):
         lbls = ["%s%s" % (chrom, "{:,}".format(i)) for i in classes]
@@ -103,7 +103,7 @@ def plot_continuous(covs, cluster_df, covariate, chrom, res, png):
 def plot_dmr(covs, cluster_df, covariate, chrom, res, png, weights_df=None):
     from matplotlib import pyplot as plt
     from pandas.tools.plotting import parallel_coordinates
-    colors = ('#764AE7', '#E81C0E')
+    colors = ('#348ABD', '#7A68A6')
 
     cdf = cluster_df.T
     try:
