@@ -253,10 +253,9 @@ def add_modelling_args(p):
 def add_expression_args(p):
     ep = p.add_argument_group('optional expression parameters')
     ep.add_argument('--X', help='matrix file with same sample columns as'
-       'methylation with rows of probes and values of some measurement (likely'
-       ' expression) this will perform a methyl-eQTL--for each DMR, it will'
-       ' test againts all rows in this methylation array. As such, it is best'
-       ' to run this on subsets of data, e.g. only looking for cis relationships')
+       'methylation with values of e.g. expression. Will perform a '
+       ' methyl-eQTL--for each DMR. As such, it is best to run this on '
+       ' subsets of data, e.g. only looking for cis relationships')
     ep.add_argument('--X-locs', help="BED file with locations of probes from"
             " the first column in --X. Should have a 'probe' column header")
     ep.add_argument('--X-dist', type=int, help="only look at cis interactions"
@@ -283,8 +282,8 @@ def add_clustering_args(p):
             help='value between 0 and 1 indicating percentage of probes '
             'that must be correlated to merge 2 clusters')
     cp.add_argument('--max-merge-dist', default=None, type=int,
-            help='maximum integer distance between 2 already defined clusters'
-            ' that could be merge based on --merge-linkage. Likely this number'
+            help='max distance between 2 already defined clusters that '
+            ' could be merge based on --merge-linkage. A number'
             ' is larger than max-dist. Default is 1.5 * max-dist')
 
 
