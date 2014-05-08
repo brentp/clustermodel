@@ -256,11 +256,12 @@ that returns a proportion of methylated cells (450K, charm, etc), however, for s
 data, we know the proportion of methylation, but also the sequencing depth. To model this,
 we use beta regression (similar to BiSeq from bioconductor). BiSeq and other
 packages such as `bsseq` (also from bioconductor) use the sequencing depth as weights for
-smoothing the methylation rate using loess and the model the smoothed methylation rates.
+smoothing the methylation rate using loess and then model the smoothed methylation rates.
 In `clustermodel`, we instead use the sequence depth to perform a weighted regression on
-the original data such that sites with more supporting reads are weighted more heavily.
+the original data such that **samples** with more supporting reads are weighted more heavily.
 We then combine the p-values from each probe in a cluster (described below) using the z-score
-method described in the BiSeq paper.
+method described in the BiSeq paper except that **sites** with more supporting reads are given
+more weight.
 
 To find clusters used above, we utilize the method described in http://www.ncbi.nlm.nih.gov/pubmed/23990415
 and utilized throughout `clustermodel`. Again, this differs from `BiSeq` and `BSSeq` which
