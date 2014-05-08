@@ -35,7 +35,7 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
     dmax = max(data1[key].max() for key in classes)
 
     dmin = min(dmin, min(data2[key].min() for key in classes)) - 0.1
-    dmax = max(dmax, min(data2[key].max() for key in classes)) + 0.1
+    dmax = max(dmax, max(data2[key].max() for key in classes)) + 0.1
 
     #dmin = max(0, dmin)
     #dmax = min(1, dmax)
@@ -50,9 +50,9 @@ def hbar_plot(data1, classes=None, data2=None, chrom='', **kwargs):
         shape2 = half_horizontal_bar(d2, pos, False, facecolor=COLORS[3], dmin=dmin,
                 dmax=dmax)
 
-    ax.set_ylim(dmin, dmax)
+    #ax.set_ylim(dmin, dmax)
     ax.set_xticks(positions)
-    ax.set_xlim(-0.5, max(positions) + 0.5)
+    #ax.set_xlim(-0.5, max(positions) + 0.5)
     #ax.set_ylim(ymin=0)
     if chrom: chrom += ":"
     if isinstance(classes[0], int):
@@ -102,7 +102,7 @@ def plot_continuous(covs, cluster_df, covariate, chrom, res, png):
 def plot_dmr(covs, cluster_df, covariate, chrom, res, png, weights_df=None):
     from matplotlib import pyplot as plt
     from pandas.tools.plotting import parallel_coordinates
-    colors = ('#348ABD', '#7A68A6')
+    colors = ('#e41a1c', '#377eb8', '#4daf4a')
 
     cdf = cluster_df.T
     try:
@@ -110,6 +110,8 @@ def plot_dmr(covs, cluster_df, covariate, chrom, res, png, weights_df=None):
     except ValueError:
         cdf.columns = list(cdf.columns)
     #cdf = 1 / (1 + np.exp(-cdf))
+    mmax = cdf.max().max()
+    mmin = cdf.min().min()
     cdf['group'] = getattr(covs, covariate)
 
     ax = plt.gca()
@@ -127,6 +129,8 @@ def plot_dmr(covs, cluster_df, covariate, chrom, res, png, weights_df=None):
     if weights_df is not None:
         W = weights_df.T
         W.columns = cdf.columns[:-1]
+        while W.max().max() > 300:
+            W = W.copy() / (W.max().max() / 300)
 
         for icol, cname in enumerate(W.columns):
             for j, g in enumerate(set(cdf['group'])):
@@ -134,11 +138,22 @@ def plot_dmr(covs, cluster_df, covariate, chrom, res, png, weights_df=None):
                            cdf.ix[cdf['group'] == g, icol],
                            edgecolors=colors[j],
                            facecolors=colors[j],
+                           alpha=0.5,
                            s=W.ix[cdf['group'] == g, icol])
         vals = ax.get_xlim()
         ax.set_xlim(vals[0] - 0.05, vals[1] + 0.05)
     if len(cdf.columns) > 6:
-        ax.set_xticklabels([x.get_text() for x in ax.get_xticklabels()],
+        if len(cdf.columns) > 20:
+            lbls = ax.get_xticklabels()[::2]
+            ax.set_xticks(ax.get_xticks()[::2])
+            ax.set_xticklabels([x.get_text() for x in lbls], rotation=10)
+
+        else:
+            ax.set_xticklabels([x.get_text() for x in ax.get_xticklabels()],
                           rotation=10)
 
+
     ax.set_ylabel('methylation')
+    if 0 <= mmin <= mmax <= 1:
+        vals = ax.get_ylim()
+        ax.set_ylim(max(0, vals[0]), min(1, vals[1]))
