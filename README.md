@@ -266,7 +266,7 @@ more weight.
 To find clusters used above, we utilize the method described in http://www.ncbi.nlm.nih.gov/pubmed/23990415
 and utilized throughout `clustermodel`. Again, this differs from `BiSeq` and `BSSeq` which
 use peak-finding to delineate regions after asigning per-CpG p-values. The advantage of our approach is
-that all clusters are reported so users can choose there own cutoff and multiple-testing correction is
+that all clusters are reported so users can choose their own cutoff and multiple-testing correction is
 more straight-forward.
 
 An example invocation to use `clustermodel` would be:
