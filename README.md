@@ -248,8 +248,8 @@ probe and positive otherwise.
 
 See the example data in `clustermodel/tests/` for how to set up your own data.
 
-Using Clustermodel With Bisulfite-Seq Data
-==========================================
+Clustermodel With Bisulfite-Seq Data
+====================================
 
 Most modes of use of `clustermodel` assume that the methylation data is a from a technology
 that returns a proportion of methylated cells (450K, charm, etc), however, for sequencing
