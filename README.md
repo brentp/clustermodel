@@ -104,7 +104,7 @@ for the liptak method.
 clustering
 ----------
 
-If we run the same model with different clustering parameters, we may get different resuts:
+If we run the same model with different clustering parameters, we may get different results:
 
 ```Shell
 python -m clustermodel 'methylation ~ disease + (1|CpG)' \
@@ -132,7 +132,8 @@ We may have a list of regions from one study to compare to another study. We
 can do this by specifying the --regions arg that gives a BED file of regions
 to test. In this case, the clustering is not performed (so clustering
 parameters are not used. Probes that fall into each region in the
---regions argument will be assumed as a cluster and the linear model will be run.
+--regions argument will be assumed as a cluster and the model(s) will be run
+for that cluster.
 Here is an example call:
 
     python -m clustermodel \
@@ -147,8 +148,8 @@ giving the regions to test. This method can also work for e *X* pression.
 Assumptions
 ===========
 
-If you use the python module, these assumptions do not need to be met, you'll
-just have to do some programming.
+If you use the python as a module rather than from the command-line, these
+assumptions do not need to be met, you'll just have to do some programming.
 
 The command-line assumes that your methylation data looks like this:
 
