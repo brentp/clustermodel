@@ -104,7 +104,7 @@ for the liptak method.
 clustering
 ----------
 
-If we run the same model with different clustering parameters, we may get different resuts:
+If we run the same model with different clustering parameters, we may get different results:
 
 ```Shell
 python -m clustermodel 'methylation ~ disease + (1|CpG)' \
@@ -132,7 +132,8 @@ We may have a list of regions from one study to compare to another study. We
 can do this by specifying the --regions arg that gives a BED file of regions
 to test. In this case, the clustering is not performed (so clustering
 parameters are not used. Probes that fall into each region in the
---regions argument will be assumed as a cluster and the linear model will be run.
+--regions argument will be assumed as a cluster and the model(s) will be run
+for that cluster.
 Here is an example call:
 
     python -m clustermodel \
@@ -147,8 +148,8 @@ giving the regions to test. This method can also work for e *X* pression.
 Assumptions
 ===========
 
-If you use the python module, these assumptions do not need to be met, you'll
-just have to do some programming.
+If you use the python as a module rather than from the command-line, these
+assumptions do not need to be met, you'll just have to do some programming.
 
 The command-line assumes that your methylation data looks like this:
 
@@ -247,6 +248,51 @@ column is negative if the methylation region is upstream of the expression
 probe and positive otherwise. 
 
 See the example data in `clustermodel/tests/` for how to set up your own data.
+
+Clustermodel With Bisulfite-Seq Data
+====================================
+
+Most modes of use of `clustermodel` assume that the methylation data is a from a technology
+that returns a proportion of methylated cells (450K, charm, etc), however, for sequencing
+data, we know the proportion of methylation, but also the sequencing depth. To model this,
+we use beta regression (similar to BiSeq from bioconductor). BiSeq and other
+packages such as `bsseq` (also from bioconductor) use the sequencing depth as weights for
+smoothing the methylation rate using loess and then model the smoothed methylation rates.
+In `clustermodel`, we instead use the sequence depth to perform a weighted regression on
+the original data such that **samples** with more supporting reads are weighted more heavily.
+We then combine the p-values from each probe in a cluster (described below) using the z-score
+method described in the BiSeq paper except that **sites** with more supporting reads are given
+more weight.
+
+To find clusters used above, we utilize the method described in http://www.ncbi.nlm.nih.gov/pubmed/23990415
+and utilized throughout `clustermodel`. Again, this differs from `BiSeq` and `BSSeq` which
+use peak-finding to delineate regions after asigning per-CpG p-values. The advantage of our approach is
+that all clusters are reported so users can choose their own cutoff and multiple-testing correction is
+more straight-forward.
+
+An example invocation to use `clustermodel` would be:
+
+```Shell
+
+     python -m clustermodel \
+            --png-path results/png/spaghetti \
+            --counts --min-cluster-size 5 \
+            --combine z-score --outlier-sds 3 \
+             --betareg --weights counts.txt.gz \
+            'methylation ~ case' \
+             covariates.txt \
+             methylation.txt.gz \
+            > results/pvals.bed
+
+Where `counts.txt.gz` has the same shape as `methylation.txt.gz` and the former has the read-depths
+while the latter has the proportion of methylation for rows of sites and columns of samples.
+The columns of those files will correspond to the rows in covariates.txt
+
+The `counts` and `methylation` can be created by sending a list of Bismark or bwa-meth.py output files (tabulated methylation)
+to `scripts/meth-matrix.py`.
+
+
+```
 
 
 INSTALLATION

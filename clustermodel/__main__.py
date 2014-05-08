@@ -5,7 +5,7 @@ from itertools import groupby, izip_longest
 from collections import OrderedDict
 import numpy as np
 import pandas as pd
-from aclust import mclust, aclust
+from aclust import mclust
 from .plotting import plot_dmr, plot_hbar, plot_continuous
 from . import feature_gen, cluster_to_dataframe, clustered_model, CPUS
 from .clustermodel import r
@@ -18,8 +18,8 @@ def is_numeric(pd_series):
         return len(pd_series.unique()) > 2
     return False
 
-def run_model(clusters, covs, model, X, outlier_sds, combine, bumping, gee_args,
-        skat, counts):
+def run_model(clusters, covs, model, X, outlier_sds, combine, bumping, betareg,
+              gee_args, skat, counts):
     # we turn the cluster list into a pandas dataframe with columns
     # of samples and rows of probes. these must match our covariates
     cluster_dfs = [cluster_to_dataframe(cluster, columns=covs.index)
@@ -33,6 +33,7 @@ def run_model(clusters, covs, model, X, outlier_sds, combine, bumping, gee_args,
         # now we want to test a model on our clustered dataset.
     res = clustered_model(covs, cluster_dfs, model, X=X, weights=weight_dfs,
                           gee_args=gee_args, combine=combine, bumping=bumping,
+                          betareg=betareg,
                           skat=skat, counts=counts, outlier_sds=outlier_sds)
     res['chrom'], res['start'], res['end'], res['n_probes'] = ("CHR", 1, 1, 0)
     if "cluster_id" in res.columns:
@@ -81,7 +82,8 @@ def clustermodel(fcovs, fmeth, model,
                  X=None, X_locs=None, X_dist=None,
                  weights=None,
                  outlier_sds=None,
-                 combine=False, bumping=False, gee_args=(), skat=False,
+                 combine=False, bumping=False, betareg=False,
+                 gee_args=(), skat=False,
                  png_path=None):
     # an iterable of feature objects
     # from here, weights are attached to the feature.
@@ -98,8 +100,8 @@ def clustermodel(fcovs, fmeth, model,
     for res in clustermodelgen(fcovs, cluster_gen, model, sep=sep,
             X=X, X_locs=X_locs, X_dist=X_dist,
             outlier_sds=outlier_sds,
-            combine=combine, bumping=bumping, gee_args=gee_args,
-            skat=skat, counts=counts, png_path=None):
+            combine=combine, bumping=bumping, betareg=betareg,
+            gee_args=gee_args, skat=skat, counts=counts, png_path=png_path):
         yield res
 
 
@@ -123,9 +125,9 @@ def groups_of(n, iterable):
 
 def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
                     X=None, X_locs=None, X_dist=None,
-                    weights=None,
                     outlier_sds=None,
-                    combine=False, bumping=False, gee_args=(), skat=False,
+                    combine=False, bumping=False,
+                    betareg=False, gee_args=(), skat=False,
                     counts=False,
                     png_path=None):
 
@@ -149,7 +151,8 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
         Xi = pd.read_table(xopen(X), index_col=0, usecols=[0]).index
         X_probes = set([fix_name(xi) for xi in Xi])
 
-    for clusters in groups_of(200 * CPUS if X is None else
+    # weights are attached to the feature
+    for clusters in groups_of(50 * CPUS if X is None else
                               8 * CPUS if X_locs is not None
                               else CPUS, cluster_gen):
 
@@ -158,7 +161,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             # here, we take any X probe that's associated with any single
             # cluster and test it against all clusters. This tends to work out
             # because the clusters are sorted by location and it helps
-            # parallelization. 
+            # parallelization.
             for cluster in clusters:
                 chrom = cluster[0].group
                 start, end = cluster[0].start, cluster[-1].end
@@ -175,21 +178,30 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             r['XXprobes'] = probes
             Xvar = 'Xfull[XXprobes,,drop=FALSE]'
 
+        if gee_args and isinstance(gee_args, basestring):
+            gee_args = gee_args.split(",")
         res = run_model(clusters, covs, model, Xvar, outlier_sds, combine,
-                        bumping, gee_args, skat, counts)
-
+                        bumping, betareg, gee_args, skat, counts)
+        j = 0
         for i, row in res.iterrows():
             row = dict(row)
             if X_locs is not None:
                 distX(row, dict(X_locs.ix[row['X'], :]))
             yield row
-            if row['p'] < 1e-4 and png_path:
-                cluster_df = cluster_to_dataframe(clusters[i], columns=covs.index)
-                plot_res(row, png_path, covs, covariate, cluster_df)
+            # blech. steal regions since we often want to plot everything.
+            if (row['p'] < 1e-4 or "--regions" in sys.argv) and png_path:
+                if 'X' in row: continue
+                cluster_df = cluster_to_dataframe(clusters[j], columns=covs.index)
+                weights_df = None
+                if clusters[j][0].weights is not None:
+                    weights_df = cluster_to_dataframe(clusters[j],
+                            columns=covs.index, weights=True)
+
+                plot_res(row, png_path, covs, covariate, cluster_df, weights_df)
+            j += 1
 
 
-
-def plot_res(res, png_path, covs, covariate, cluster_df):
+def plot_res(res, png_path, covs, covariate, cluster_df, weights_df=None):
     from matplotlib import pyplot as plt
     from mpltools import style
     style.use('ggplot')
@@ -207,8 +219,9 @@ def plot_res(res, png_path, covs, covariate, cluster_df):
     else:
         f = plt.figure(figsize=(11, 4))
         ax = f.add_subplot(1, 1, 1)
-        if 'spaghetti' in png_path:
-            plot_dmr(covs, cluster_df, covariate, res['chrom'], res, png)
+        if 'spaghetti' in png_path and cluster_df.shape[0] > 1:
+            plot_dmr(covs, cluster_df, covariate, res['chrom'], res, png,
+                    weights_df)
         else:
             plot_hbar(covs, cluster_df, covariate, res['chrom'], res, png)
         plt.title('p-value: %.3g %s: %.3f' % (res['p'], covariate, res['coef']))
@@ -217,6 +230,7 @@ def plot_res(res, png_path, covs, covariate, cluster_df):
         plt.savefig(png)
     else:
         plt.show()
+    plt.close()
 
 
 def main_example():
@@ -226,7 +240,7 @@ def main_example():
 
     for cluster_p in clustermodel(fcovs, fmeth, model):
         if cluster_p['p'] < 1e-5:
-            print cluster_p
+            print(cluster_p)
 
 def add_modelling_args(p):
     mp = p.add_argument_group('modeling choices (choose one or specify a '
@@ -240,7 +254,10 @@ def add_modelling_args(p):
     group.add_argument('--bumping', action="store_true")
 
     p.add_argument('--counts', action="store_true",
-            help="data is count data. model must be a mixed-effect model")
+            help="y is count data. model must be a mixed-effect model")
+    p.add_argument('--betareg', action="store_true",
+            help="use beta-regression in which case `methylation` should be"
+            " the ratio and --weights should be the read-depths.")
 
     p.add_argument('model',
                    help="model in R syntax, e.g. 'methylation ~ disease'")
@@ -296,17 +313,24 @@ a spaghetti plot, otherwise, it's a histogram plot""")
             help="remove points that are more than this many standard "
                  "deviations away from the mean")
 
-def get_method(a):
+def get_method(a, n_probes=None):
     if a.gee_args is not None:
-        method = 'gee:' + a.gee_args
-        a.gee_args = a.gee_args.split(",")
+        method = 'gee:' + ",".join(a.gee_args)
     else:
-        if a.combine: method = a.combine
+        if a.combine:
+            method = a.combine
+            if a.betareg:
+                if n_probes > 1:
+                    method += "/beta-regression"
+                else:
+                    method = "beta-regression"
         elif a.bumping: method = 'bumping'
         elif a.skat: method = 'skat'
         else:
             assert "|" in a.model
             method = "mixed-model"
+    if n_probes == 1 and method != "beta-regression":
+        method = "lm"
     return method
 
 def gen_clusters_from_regions(feature_iter, regions):
@@ -333,65 +357,59 @@ def gen_clusters_from_regions(feature_iter, regions):
         yield list(cluster)
 
 
-def regional_main(args=sys.argv[1:]):
-    import argparse
-    p = argparse.ArgumentParser(__doc__)
-    add_modelling_args(p)
-    add_misc_args(p)
-    add_expression_args(p)
-    add_weight_args(p)
-
-    p.add_argument('--regions', required=True, help="BED file of regions to "
-            "test", metavar="BED")
-
-    a = p.parse_args(args)
-    method = get_method(a)
-
-    feature_iter = feature_gen(a.methylation)
-    cluster_gen = gen_clusters_from_regions(feature_iter, a.regions)
-
-    fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{icoef}\t{n_probes}\t{model}\t{method}"
-    if a.X_locs:
-        fmt += "\t{Xname}\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
-    print "#" + fmt.replace("}", "").replace("{", "")
-
-
-    for c in clustermodelgen(a.covs, cluster_gen, a.model,
-                          X=a.X,
-                          X_locs=a.X_locs,
-                          X_dist=a.X_dist,
-                          weights=a.weights,
-                          outlier_sds=a.outlier_sds,
-                          combine=a.combine,
-                          bumping=a.bumping,
-                          gee_args=a.gee_args,
-                          skat=a.skat,
-                          counts=a.counts,
-                          png_path=a.png_path):
-        c['method'] = method if c['n_probes'] > 1 else 'lm'
-        print fmt.format(**c)
-
-
 def main(args=sys.argv[1:]):
     import argparse
     p = argparse.ArgumentParser(__doc__)
 
     add_modelling_args(p)
-    add_clustering_args(p)
+    if not "--regions" in args:
+        add_clustering_args(p)
+    else:
+        # want to specify existing regions, not use found ones.
+        p.add_argument('--regions', required=True,
+                help="BED file of regions to test", metavar="BED")
+
     add_misc_args(p)
     add_expression_args(p)
     add_weight_args(p)
 
     a = p.parse_args(args)
-    if a.max_merge_dist is None:
+    if a.gee_args:
+        a.gee_args = a.gee_args.split(",")
+    if a.betareg and not (a.weights and a.combine):
+        sys.stderr.write("must specifiy a weights matrix containing the"
+           " read-depths when using betaregression and a combine method\n")
+        sys.exit(p.print_usage())
+    if not "--regions" in args and a.max_merge_dist is None:
         a.max_merge_dist = 1.5 * a.max_dist
-    method = get_method(a)
 
     fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{icoef}\t{n_probes}\t{model}\t{covariate}\t{method}"
+    if a.betareg:
+        fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{n_probes}\t{model}\t{covariate}\t{method}"
     if a.X_locs:
         fmt += "\t{Xname}\t{Xstart}\t{Xend}\t{Xstrand}\t{distance}"
-    print "#" + fmt.replace("}", "").replace("{", "")
-    for c in clustermodel(a.covs, a.methylation, a.model,
+    print("#" + fmt.replace("}", "").replace("{", ""))
+
+    if "--regions" in args:
+        #     fmt = "{chrom}\t{start}\t{end}\t{coef}\t{p}\t{icoef}\t{n_probes}\t{model}\t{method}"
+        feature_iter = feature_gen(a.methylation, weights=a.weights)
+        cluster_gen = gen_clusters_from_regions(feature_iter, a.regions)
+        for c in clustermodelgen(a.covs, cluster_gen, a.model,
+                          X=a.X,
+                          X_locs=a.X_locs,
+                          X_dist=a.X_dist,
+                          outlier_sds=a.outlier_sds,
+                          combine=a.combine,
+                          bumping=a.bumping,
+                          betareg=a.betareg,
+                          gee_args=a.gee_args,
+                          skat=a.skat,
+                          counts=a.counts,
+                          png_path=a.png_path):
+            c['method'] = get_method(a,  c['n_probes'])
+            print(fmt.format(**c))
+    else:
+        for c in clustermodel(a.covs, a.methylation, a.model,
                           max_dist=a.max_dist,
                           linkage=a.linkage,
                           rho_min=a.rho_min,
@@ -400,6 +418,7 @@ def main(args=sys.argv[1:]):
                           max_merge_dist=a.max_merge_dist,
                           combine=a.combine,
                           bumping=a.bumping,
+                          betareg=a.betareg,
                           gee_args=a.gee_args,
                           skat=a.skat,
                           counts=a.counts,
@@ -409,8 +428,8 @@ def main(args=sys.argv[1:]):
                           weights=a.weights,
                           outlier_sds=a.outlier_sds,
                           png_path=a.png_path):
-        c['method'] = method if c['n_probes'] > 1 else 'lm'
-        print fmt.format(**c)
+            c['method'] = get_method(a,  c['n_probes'])
+            print(fmt.format(**c))
 
 if __name__ == "__main__":
     import sys
@@ -421,7 +440,4 @@ if __name__ == "__main__":
         sys.exit(simulate.main(sys.argv[2:]))
 
     # want to specify existing regions, not use found ones.
-    if len(sys.argv) > 1 and "--regions" in sys.argv[1:]:
-        sys.exit(regional_main(sys.argv[1:]))
-
     main()
