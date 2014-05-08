@@ -178,6 +178,8 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             r['XXprobes'] = probes
             Xvar = 'Xfull[XXprobes,,drop=FALSE]'
 
+        if gee_args and isinstance(gee_args, basestring):
+            gee_args = gee_args.split(",")
         res = run_model(clusters, covs, model, Xvar, outlier_sds, combine,
                         bumping, betareg, gee_args, skat, counts)
         j = 0
@@ -188,6 +190,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             yield row
             # blech. steal regions since we often want to plot everything.
             if (row['p'] < 1e-4 or "--regions" in sys.argv) and png_path:
+                if 'X' in row: continue
                 cluster_df = cluster_to_dataframe(clusters[j], columns=covs.index)
                 weights_df = None
                 if clusters[j][0].weights is not None:
@@ -313,8 +316,7 @@ a spaghetti plot, otherwise, it's a histogram plot""")
 
 def get_method(a, n_probes=None):
     if a.gee_args is not None:
-        method = 'gee:' + a.gee_args
-        a.gee_args = a.gee_args.split(",")
+        method = 'gee:' + ",".join(a.gee_args)
     else:
         if a.combine:
             method = a.combine
@@ -373,6 +375,8 @@ def main(args=sys.argv[1:]):
     add_weight_args(p)
 
     a = p.parse_args(args)
+    if a.gee_args:
+        a.gee_args = a.gee_args.split(",")
     if a.betareg and not (a.weights and a.combine):
         sys.stderr.write("must specifiy a weights matrix containing the"
            " read-depths when using betaregression and a combine method\n")
