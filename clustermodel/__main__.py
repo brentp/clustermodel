@@ -52,7 +52,8 @@ def run_model(clusters, covs, model, X, outlier_sds, combine, bumping, betareg,
     return res
 
 def distX(dmr, expr):
-    strand = "-" if expr['strand'] == "-" else "+"
+    strand = str(expr.get('strand', '+'))
+    if strand not in "+-": strand = "+"
     dmr['distance'] = 0
     if dmr['end'] < expr['start']:
         dmr['distance'] = expr['start'] - dmr['end']
@@ -69,6 +70,8 @@ def distX(dmr, expr):
             dmr['distance'] *= -1
     dmr['Xstart'], dmr['Xend'], dmr['Xstrand'] = expr['start'], expr['end'], expr['strand']
     dmr['Xname'] = expr.get('name', expr.get('gene', dmr.get('X', 'NA')))
+    if dmr['chrom'] != expr['chrom']:
+        dmr['distance'] = "NA"
 
 
 def clustermodel(fcovs, fmeth, model,
