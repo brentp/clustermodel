@@ -5,10 +5,11 @@ import pandas as pd
 from toolshed import reader
 
 class ClusterFeature(object):
-    __slots__ = "group start end values rho_min".split()
+    __slots__ = "group start end values rho_min weights".split()
 
-    def __init__(self, group, start, end, values, rho_min=0.25):
+    def __init__(self, group, start, end, values, rho_min=0.25, weights=None):
         self.group, self.start, self.end, self.values = group, start, end, values
+        self.weights = weights
         self.rho_min = rho_min
 
     def distance(self, other):
@@ -36,15 +37,19 @@ def row_handler(tokens):
     return (chrom, int(pos) - 1, int(pos), np.array([float(x or 'nan')
                                                      for x in tokens[1:]]))
 
-def cluster_to_dataframe(cluster, columns=None):
-    df = pd.DataFrame([c.values for c in cluster],
+def cluster_to_dataframe(cluster, columns=None, weights=False):
+    if weights:
+        df = pd.DataFrame([c.weights for c in cluster],
+            index=["%s:%i" % (c.group, c.end) for c in cluster])
+    else:
+        df = pd.DataFrame([c.values for c in cluster],
             index=["%s:%i" % (c.group, c.end) for c in cluster])
     if columns is not None:
         df.columns = columns
     return df
 
 def feature_gen(fname, row_handler=row_handler, feature_class=ClusterFeature, sep="\t",
-        rho_min=0.3, skip_first_row=True):
+        rho_min=0.3, skip_first_row=True, weights=None):
     """
 
     Parameters
@@ -68,8 +73,17 @@ def feature_gen(fname, row_handler=row_handler, feature_class=ClusterFeature, se
         the minimum spearman's r between 2 sets of values for them to be
         considered as correlated
     """
+    if weights is not None:
+        weights = reader(weights, header=False, sep=sep)
     for i, toks in enumerate(reader(fname, header=False, sep=sep)):
         if i == 0 and skip_first_row:
+            if weights is not None: next(weights)
             continue
         vals = row_handler(toks)
-        yield feature_class(*vals, **{'rho_min': rho_min})
+        if weights is not None:
+            chrom, start, end, weight_vals = row_handler(next(weights))
+            assert chrom == vals[0]
+            assert start == vals[1], (vals[1], start)
+        else:
+            weight_vals = None
+        yield feature_class(*vals, **{'rho_min': rho_min, 'weights':weight_vals} )
