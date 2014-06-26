@@ -2,7 +2,7 @@
 import signal
 signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
-__version__ = "0.1"
+__version__ = "0.11"
 from . import simulate
 from . import clustermodel
 from . import feature
