@@ -168,10 +168,14 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             for cluster in clusters:
                 chrom = cluster[0].group
                 start, end = cluster[0].start, cluster[-1].end
-                probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
+                if X_dist is not None:
+                    probe_locs = X_locs[((X_locs.ix[:, 0] == chrom) &
                              (X_locs.ix[:, 1] < (end + X_dist)) &
                              (X_locs.ix[:, 2] > (start - X_dist)))]
-                probes.extend([p for p in probe_locs.index if p in X_probes])
+                    probes.extend([p for p in probe_locs.index if p in X_probes])
+            if X_dist is None:
+                probe_locs = X_locs
+                probes = list(probe_locs.index)
             if len(probes) == 0: continue
             probes = OrderedDict.fromkeys(probes).keys()
 
@@ -260,7 +264,7 @@ def add_modelling_args(p):
             help="y is count data. model must be a mixed-effect model")
     p.add_argument('--betareg', action="store_true",
             help="use beta-regression in which case `methylation` should be"
-            " the ratio and --weights should be the read-depths.")
+            " the ratio and --weights could be the read-depths.")
 
     p.add_argument('model',
                    help="model in R syntax, e.g. 'methylation ~ disease'")
@@ -280,7 +284,7 @@ def add_expression_args(p):
             " the first column in --X. Should have a 'probe' column header")
     ep.add_argument('--X-dist', type=int, help="only look at cis interactions"
             " between X and methylation sites with this as the maximum",
-            default=100000)
+            default=None)
 
 def add_weight_args(p):
     wp = p.add_argument_group('weighted regression')
