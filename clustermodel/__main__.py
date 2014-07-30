@@ -383,9 +383,9 @@ def main(args=sys.argv[1:]):
     a = p.parse_args(args)
     if a.gee_args:
         a.gee_args = a.gee_args.split(",")
-    if a.betareg and not (a.weights and a.combine):
-        sys.stderr.write("must specifiy a weights matrix containing the"
-           " read-depths when using betaregression and a combine method\n")
+    if a.betareg and not a.combine:
+        sys.stderr.write("must specifiy a --combine argument when using"
+        " beta-regression\n")
         sys.exit(p.print_usage())
     if not "--regions" in args and a.max_merge_dist is None:
         a.max_merge_dist = 1.5 * a.max_dist
