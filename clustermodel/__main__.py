@@ -134,7 +134,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
                     counts=False,
                     png_path=None):
 
-    covs = pd.read_table(fcovs, index_col=0, sep=sep)
+    covs = (pd.read_csv if fcovs.endswith(".csv") else pd.read_table)(fcovs, index_col=0)
     covariate = model.split("~")[1].split("+")[0].strip()
     Xvar = X
     if X is not None:
