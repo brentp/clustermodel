@@ -194,6 +194,7 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             row = dict(row)
             if X_locs is not None:
                 distX(row, dict(X_locs.ix[row['X'], :]))
+                if abs(row['distance']) > X_dist: continue
             yield row
             # blech. steal regions since we often want to plot everything.
             if (row['p'] < 1e-4 or "--regions" in sys.argv) and png_path:

@@ -74,6 +74,7 @@ DEBUG model:
     Then the R expression will always be wrapped in "try()" to avoid R crashing
     if the method "get" is called.  
 '''
+NA = None
 
 # the module "subprocess" requires Python 2.4
 

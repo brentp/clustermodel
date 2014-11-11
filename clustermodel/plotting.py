@@ -18,9 +18,15 @@ def half_horizontal_bar(data, pos, left=False, dmin=0, dmax=1, **kwargs):
 
     if left:
         counts *= -1
+        ax.plot([pos - 0.5, pos], [data.mean()] *2, color=kwargs.get('facecolor',
+            'k'), lw=3, alpha=0.5)
+    else:
+        ax.plot([pos, pos + 0.5], [data.mean()] *2, color=kwargs.get('facecolor',
+            'k'), lw=3, alpha=0.5)
 
     pos += (-0.0002 if left else 0.0002)
     return ax.barh(edges[:n_bins], counts, bsize, left=pos, **kwargs)[0]
+    return r
 
 COLORS = '#348ABD #7A68A6 #A60628 #467821 #CF4457 #188487 #E24A33'.split()
 

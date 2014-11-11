@@ -3,7 +3,7 @@ from __future__ import print_function
 import signal
 signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
-__version__ = "0.12"
+__version__ = "0.13"
 from . import simulate
 from . import clustermodel
 from . import feature
