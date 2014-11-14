@@ -71,7 +71,7 @@ def distX(dmr, expr):
     dmr['Xstart'], dmr['Xend'], dmr['Xstrand'] = expr['start'], expr['end'], expr['strand']
     dmr['Xname'] = expr.get('name', expr.get('gene', dmr.get('X', 'NA')))
     if dmr['chrom'] != expr['chrom']:
-        dmr['distance'] = "NA"
+        dmr['distance'] = np.nan
 
 
 def clustermodel(fcovs, fmeth, model,
@@ -194,11 +194,11 @@ def clustermodelgen(fcovs, cluster_gen, model, sep="\t",
             row = dict(row)
             if X_locs is not None:
                 distX(row, dict(X_locs.ix[row['X'], :]))
-                if abs(row['distance']) > X_dist: continue
+                if np.isnan(row['distance']) or abs(row['distance']) > X_dist: continue
             yield row
             # blech. steal regions since we often want to plot everything.
             if (row['p'] < 1e-4 or "--regions" in sys.argv) and png_path:
-                if 'X' in row: continue
+                if 'X' in row and row['p'] > 1e-8: continue
                 cluster_df = cluster_to_dataframe(clusters[j], columns=covs.index)
                 weights_df = None
                 if clusters[j][0].weights is not None:
